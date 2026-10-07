@@ -16,6 +16,8 @@ import kotlin.random.Random
 class TripRepository(context: Context) {
     private val source = LiveDataSource(Network(context))
     private val random = Random.Default
+    private val recentDestinations = ArrayDeque<String>()
+    private var cityCache: CachedCities? = null
 
     suspend fun roll(origin: Origin, prefs: TripPreferences): TripPlan = coroutineScope {
         val days = when (prefs.duration) {
@@ -25,7 +27,10 @@ class TripRepository(context: Context) {
             DurationChoice.AUTO -> 2
         }
         val radius = radiusKm(days, prefs.transport)
-        val liveCities = runCatching { source.cities(origin.point, radius) }.getOrDefault(emptyList())
+        val cached = cityCache?.takeIf { it.radiusKm == radius && haversine(it.origin, origin.point) < 5.0 }?.cities
+        val liveCities = cached ?: runCatching { source.cities(origin.point, radius) }.getOrDefault(emptyList()).also {
+            if (it.isNotEmpty()) cityCache = CachedCities(origin.point, radius, it)
+        }
         val rawCities = if (liveCities.size >= 4) liveCities else fallbackCities()
 
         val prelim = rawCities
@@ -74,11 +79,18 @@ class TripRepository(context: Context) {
             Destination(it.name, it.country, it.point, it.population, ((km / 75) * 60).roundToInt(), km)
         }).sortedByDescending { score(it, days, prefs) }.take(7)
 
-        val chosen = weightedPick(pool)
+        val freshPool = pool.filterNot { recentDestinations.contains(it.name.lowercase()) }
+        val chosen = weightedPick(if (freshPool.size >= 2) freshPool else pool)
+        recentDestinations.addFirst(chosen.name.lowercase())
+        while (recentDestinations.size > 4) recentDestinations.removeLast()
+
         val startDate = nextSaturday(LocalDate.now())
 
         val placesDeferred = async { runCatching { source.attractions(chosen.point, prefs.style.name) }.getOrDefault(emptyList()) }
-        val staysDeferred = async { runCatching { source.stays(chosen.point) }.getOrDefault(emptyList()) }
+        val staysDeferred = async {
+            if (days == 1) emptyList()
+            else runCatching { source.stays(chosen.point) }.getOrDefault(emptyList())
+        }
         val weatherDeferred = async { runCatching { source.weather(chosen.point) }.getOrDefault(emptyList()) }
 
         val places = placesDeferred.await()
@@ -252,6 +264,8 @@ class TripRepository(context: Context) {
         while (d.dayOfWeek != DayOfWeek.SATURDAY) d = d.plusDays(1)
         return d
     }
+
+    private data class CachedCities(val origin: GeoPoint, val radiusKm: Int, val cities: List<CityRaw>)
 
     private fun fallbackCities() = listOf(
         CityRaw("Cologne", "Germany", GeoPoint(50.9375, 6.9603), 1_087_000),
