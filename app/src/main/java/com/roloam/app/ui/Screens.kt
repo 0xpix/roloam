@@ -111,12 +111,31 @@ private fun PrimaryButton(text:String, enabled:Boolean=true, onClick:()->Unit) {
         enabled=enabled,
         modifier=Modifier.fillMaxWidth().height(58.dp),
         shape=RoundedCornerShape(18.dp),
-        colors=ButtonDefaults.buttonColors(containerColor=RoloamInk)
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            disabledContainerColor = RoloamMuted.copy(alpha = .22f),
+            disabledContentColor = RoloamMuted
+        )
     ) { Text(text.uppercase() + "  →", fontWeight=FontWeight.Bold, letterSpacing=1.2.sp) }
 }
 
 @Composable
 fun HomeScreen(state: UiState, open:(Screen)->Unit, roll:()->Unit) = Page {
+    Row(
+        Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        RoloamWordmark()
+        Text(
+            "BETA",
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            color = RoloamMuted,
+            letterSpacing = 1.4.sp
+        )
+    }
     JourneyHeader(state.preferences.transport, !state.rolling)
     DateStamp()
     Spacer(Modifier.height(20.dp))
@@ -130,6 +149,10 @@ fun HomeScreen(state: UiState, open:(Screen)->Unit, roll:()->Unit) = Page {
     } else {
         val durationText = when(state.preferences.duration){DurationChoice.ONE->"1 day";DurationChoice.TWO->"2 days";DurationChoice.THREE->"3 days";DurationChoice.AUTO->"a few days"}
         Text("Next free weekend detected.\nWeather decides the rhythm.\nYou could disappear for " + durationText + ".", lineHeight=24.sp)
+        HomeTravelArt(
+            mode = state.preferences.transport,
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+        )
         Spacer(Modifier.weight(1f))
         state.error?.let {
             Text(it, color=MaterialTheme.colorScheme.error, modifier=Modifier.padding(bottom=12.dp))
@@ -246,16 +269,68 @@ fun PlanScreen(state: UiState, open:(Screen)->Unit, select:(TripStop)->Unit, bac
     Spacer(Modifier.height(18.dp))
     Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
         trip.itinerary.forEachIndexed { dayIndex, day ->
-            Text("DAY " + (dayIndex+1) + " · " + day.date.format(DateTimeFormatter.ofPattern("EEE dd MMM")).uppercase(),fontSize=12.sp,fontWeight=FontWeight.Bold,modifier=Modifier.padding(vertical=10.dp))
-            if(dayIndex==0) {
-                val t = (if(state.preferences.transport == TransportMode.TRAIN) "estimated · " else "") + travelText(trip.destination.travelMinutes)
-                TimelineRow("08:00","Depart "+trip.originLabel,t,false) {}
+            Row(
+                Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 7.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "DAY " + (dayIndex + 1) + " · " +
+                        day.date.format(DateTimeFormatter.ofPattern("EEE dd MMM")).uppercase(),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                day.weather?.let { weather ->
+                    val temp = weather.maxC?.roundToInt()?.let { it.toString() + "°" } ?: ""
+                    val rain = weather.precipitationProbability?.let { it.toString() + "% rain" } ?: ""
+                    val summary = listOf(temp, rain).filter { it.isNotBlank() }.joinToString(" · ")
+                    if (summary.isNotBlank()) {
+                        Text(summary, fontSize = 10.sp, color = RoloamMuted)
+                    }
+                }
             }
-            day.stops.forEach { stop ->
-                TimelineRow(stop.time,stop.place.name,"~ "+stop.durationMinutes+" min",true){select(stop)}
+
+            val rows = buildList {
+                if (dayIndex == 0) {
+                    val t = (if (state.preferences.transport == TransportMode.TRAIN) "estimated · " else "") +
+                        travelText(trip.destination.travelMinutes)
+                    add(TimelineUi("08:00", "Depart " + trip.originLabel, t, TimelineKind.TRAVEL, null))
+                }
+                day.stops.forEach { stop ->
+                    add(TimelineUi(stop.time, stop.place.name, "~ " + stop.durationMinutes + " min", TimelineKind.PLACE, stop))
+                }
+                if (dayIndex < trip.days - 1 && trip.stay != null) {
+                    add(
+                        TimelineUi(
+                            "19:00",
+                            "Sleep · " + trip.stay.name,
+                            trip.stay.category.replace('_', ' '),
+                            TimelineKind.STAY,
+                            null
+                        )
+                    )
+                }
+                if (dayIndex == trip.days - 1) {
+                    add(TimelineUi("16:00", "Return to " + trip.originLabel, travelText(trip.destination.travelMinutes), TimelineKind.TRAVEL, null))
+                }
             }
-            if(dayIndex < trip.days-1 && trip.stay!=null) TimelineRow("19:00","Sleep · "+trip.stay.name,trip.stay.category.replace('_',' '),false){open(Screen.STAY)}
-            if(dayIndex==trip.days-1) TimelineRow("16:00","Return to "+trip.originLabel,travelText(trip.destination.travelMinutes),false){}
+
+            rows.forEachIndexed { rowIndex, row ->
+                TimelineRow(
+                    time = row.time,
+                    title = row.title,
+                    sub = row.sub,
+                    kind = row.kind,
+                    isLast = rowIndex == rows.lastIndex,
+                    clickable = row.stop != null || row.kind == TimelineKind.STAY,
+                    onClick = {
+                        when {
+                            row.stop != null -> select(row.stop)
+                            row.kind == TimelineKind.STAY -> open(Screen.STAY)
+                        }
+                    }
+                )
+            }
         }
     }
     Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -270,13 +345,82 @@ private fun travelText(min:Int):String {
     return (if(h>0) h.toString()+"h " else "")+m+"m"
 }
 
+private enum class TimelineKind { TRAVEL, PLACE, STAY }
+
+private data class TimelineUi(
+    val time: String,
+    val title: String,
+    val sub: String,
+    val kind: TimelineKind,
+    val stop: TripStop?
+)
+
 @Composable
-private fun TimelineRow(time:String,title:String,sub:String,clickable:Boolean,onClick:()->Unit) {
-    Row(Modifier.fillMaxWidth().clickable(enabled=clickable,onClick=onClick).padding(vertical=8.dp)) {
-        Text(time,fontSize=11.sp,color=RoloamMuted,modifier=Modifier.width(55.dp))
-        Column(Modifier.padding(start=14.dp)) {
-            Text(title,fontWeight=FontWeight.Bold,fontSize=14.sp)
-            Text(sub,fontSize=11.sp,color=RoloamMuted)
+private fun TimelineRow(
+    time: String,
+    title: String,
+    sub: String,
+    kind: TimelineKind,
+    isLast: Boolean,
+    clickable: Boolean,
+    onClick: () -> Unit
+) {
+    val marker = when (kind) {
+        TimelineKind.PLACE -> RoloamAccent
+        TimelineKind.STAY -> MaterialTheme.colorScheme.primary
+        TimelineKind.TRAVEL -> RoloamMuted
+    }
+
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(enabled = clickable, onClick = onClick)
+            .padding(vertical = 3.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Text(
+            time,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = if (kind == TimelineKind.PLACE) MaterialTheme.colorScheme.onBackground else RoloamMuted,
+            modifier = Modifier.width(48.dp).padding(top = 14.dp)
+        )
+
+        Canvas(Modifier.width(24.dp).height(68.dp)) {
+            val x = size.width / 2f
+            val dotY = 20.dp.toPx()
+            if (!isLast) {
+                drawLine(
+                    color = RoloamMuted.copy(alpha = .28f),
+                    start = Offset(x, dotY + 6.dp.toPx()),
+                    end = Offset(x, size.height),
+                    strokeWidth = 1.4.dp.toPx()
+                )
+            }
+            drawCircle(marker.copy(alpha = .18f), 7.dp.toPx(), Offset(x, dotY))
+            drawCircle(marker, 3.2.dp.toPx(), Offset(x, dotY))
+        }
+
+        Surface(
+            modifier = Modifier.weight(1f),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .12f),
+            shape = RoundedCornerShape(13.dp)
+        ) {
+            Column(Modifier.padding(horizontal = 13.dp, vertical = 11.dp)) {
+                Text(
+                    title,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    sub,
+                    fontSize = 11.sp,
+                    color = RoloamMuted,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
         }
     }
 }

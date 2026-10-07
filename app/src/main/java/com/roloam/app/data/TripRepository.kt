@@ -94,7 +94,7 @@ class TripRepository(context: Context) {
         val weatherDeferred = async { runCatching { source.weather(chosen.point) }.getOrDefault(emptyList()) }
 
         val places = placesDeferred.await()
-        val stays = rankStays(staysDeferred.await(), prefs)
+        val rawStays = staysDeferred.await()
         val weather = weatherDeferred.await()
 
         val rankedPlaces = rankPlaces(places, chosen.point, prefs).ifEmpty {
@@ -102,6 +102,7 @@ class TripRepository(context: Context) {
         }
 
         val itinerary = buildItinerary(rankedPlaces, chosen, days, startDate, weather)
+        val stays = rankStays(rawStays, prefs, itinerary, chosen.point)
         TripPlan(
             originLabel = origin.label,
             origin = origin.point,
@@ -116,11 +117,43 @@ class TripRepository(context: Context) {
     }
 
     private fun score(d: Destination, days: Int, prefs: TripPreferences): Double {
-        val target = targetTravelMinutes(days, prefs.transport)
-        val travelFit = 1.0 - (abs(d.travelMinutes - target).toDouble() / target).coerceAtMost(1.0)
-        val pop = d.population?.let { (ln(it.toDouble().coerceAtLeast(1000.0)) - 6.9) / 7.0 } ?: 0.35
-        val cheapBias = if (prefs.budget == Budget.CHEAP && (d.population ?: 0) < 350_000) 0.15 else 0.0
-        return travelFit * 0.58 + pop.coerceIn(0.0, 1.0) * 0.22 + cheapBias + random.nextDouble(0.0, 0.28)
+        val targetMinutes = targetTravelMinutes(days, prefs.transport)
+        val targetKm = targetDistance(days, prefs.transport)
+
+        // A good random trip should feel worth the travel without consuming the whole day.
+        val travelFit = 1.0 -
+            (abs(d.travelMinutes - targetMinutes).toDouble() / targetMinutes)
+                .coerceIn(0.0, 1.0)
+        val distanceFit = 1.0 -
+            (abs(d.distanceKm - targetKm) / targetKm.coerceAtLeast(1.0))
+                .coerceIn(0.0, 1.0)
+
+        // Population is useful as a rough proxy for how dense the choice of things to do is,
+        // but we deliberately do not make "largest city wins" the default.
+        val cityScale = d.population
+            ?.let { (ln(it.toDouble().coerceAtLeast(1_000.0)) - 6.9) / 7.0 }
+            ?.coerceIn(0.0, 1.0)
+            ?: 0.32
+
+        val styleFit = when (prefs.style) {
+            TripStyle.CITY -> cityScale
+            TripStyle.NATURE -> 1.0 - cityScale
+            TripStyle.BOTH -> 1.0 - abs(cityScale - 0.55)
+        }.coerceIn(0.0, 1.0)
+
+        val budgetFit = when (prefs.budget) {
+            Budget.CHEAP -> (1.0 - cityScale * 0.72).coerceIn(0.0, 1.0)
+            Budget.NORMAL -> 0.72
+        }
+
+        // Randomness stays meaningful, but it can no longer rescue a poor travel-time match.
+        val discoveryJitter = random.nextDouble(0.0, 0.14)
+
+        return travelFit * 0.46 +
+            distanceFit * 0.18 +
+            styleFit * 0.20 +
+            budgetFit * 0.10 +
+            discoveryJitter
     }
 
     private fun weightedPick(pool: List<Destination>): Destination {
@@ -152,11 +185,48 @@ class TripRepository(context: Context) {
             .take(16)
     }
 
-    private fun rankStays(input: List<Stay>, prefs: TripPreferences): List<Stay> {
+    private fun rankStays(
+        input: List<Stay>,
+        prefs: TripPreferences,
+        itinerary: List<TripDay>,
+        destinationCenter: GeoPoint
+    ): List<Stay> {
+        val overnightTransitions = itinerary.zipWithNext().mapNotNull { (today, tomorrow) ->
+            val last = today.stops.lastOrNull()?.place?.point ?: return@mapNotNull null
+            val next = tomorrow.stops.firstOrNull()?.place?.point ?: return@mapNotNull null
+            last to next
+        }
+
         return input.sortedByDescending { stay ->
             val camp = stay.category == "camp_site" || stay.category == "caravan_site"
-            val preference = if (prefs.stay == StayPreference.CAMPING && camp) 5.0 else if (prefs.stay == StayPreference.ANY) 1.0 else 0.0
-            preference + (if (stay.website != null) 1.0 else 0.0) - stay.distanceFromCenterKm / 12.0
+
+            val preference = when {
+                prefs.stay == StayPreference.CAMPING && camp -> 6.0
+                prefs.stay == StayPreference.CAMPING -> 0.4
+                camp -> 1.8
+                else -> 1.2
+            }
+
+            val routeDetourKm = if (overnightTransitions.isEmpty()) {
+                haversine(destinationCenter, stay.point)
+            } else {
+                overnightTransitions.map { (last, next) ->
+                    val viaStay = haversine(last, stay.point) + haversine(stay.point, next)
+                    val direct = haversine(last, next)
+                    (viaStay - direct).coerceAtLeast(0.0)
+                }.average()
+            }
+
+            val usefulData = when {
+                stay.website != null && stay.openingHours != null -> 0.8
+                stay.website != null -> 0.5
+                else -> 0.0
+            }
+
+            preference +
+                usefulData -
+                routeDetourKm / 5.0 -
+                stay.distanceFromCenterKm / 35.0
         }
     }
 
@@ -179,14 +249,38 @@ class TripRepository(context: Context) {
             val stops = mutableListOf<TripStop>()
             repeat(count) {
                 if (chosen.isEmpty()) return@repeat
-                val next = chosen.minByOrNull { p ->
+
+                var eligible = chosen.filter {
+                    openingState(it.openingHours, date, clock) != OpeningState.CLOSED
+                }
+
+                // If every known place is still closed, wait a little rather than schedule a
+                // museum or attraction before its listed opening time.
+                var waits = 0
+                while (eligible.isEmpty() && chosen.isNotEmpty() && waits < 6) {
+                    clock = clock.plusMinutes(30)
+                    waits += 1
+                    eligible = chosen.filter {
+                        openingState(it.openingHours, date, clock) != OpeningState.CLOSED
+                    }
+                }
+
+                val next = eligible.minByOrNull { p ->
                     val dist = haversine(previous, p.point)
                     val preferred = preferredHour(p.category, dayWeather)
                     dist * 2.2 + abs(clock.hour + clock.minute / 60.0 - preferred) * 0.8
                 } ?: return@repeat
+
                 chosen.remove(next)
                 val transitMin = ((haversine(previous, next.point) / 4.5) * 60).roundToInt().coerceIn(5, 45)
                 if (stops.isNotEmpty()) clock = clock.plusMinutes(transitMin.toLong())
+
+                // Re-check after transit. If the POI would be closed on arrival, skip it rather
+                // than presenting a plan that cannot actually be followed.
+                if (openingState(next.openingHours, date, clock) == OpeningState.CLOSED) {
+                    return@repeat
+                }
+
                 val visit = visitMinutes(next.category)
                 stops += TripStop(next, clock.format(DateTimeFormatter.ofPattern("HH:mm")), visit, whyNow(next.category, clock, dayWeather))
                 clock = clock.plusMinutes(visit.toLong())

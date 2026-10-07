@@ -12,7 +12,7 @@ android {
         applicationId = "com.roloam.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 10001
+        versionCode = 10002
         versionName = "0.1.0"
         buildConfigField("boolean", "BETA_CHANNEL", "false")
     }
@@ -33,7 +33,7 @@ android {
         create("beta") {
             initWith(getByName("debug"))
             applicationIdSuffix = ".beta"
-            versionNameSuffix = "-beta.1"
+            versionNameSuffix = "-beta.2"
             signingConfig = signingConfigs.getByName("beta")
             isDebuggable = false
             isMinifyEnabled = false
