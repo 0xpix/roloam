@@ -117,6 +117,20 @@ private fun PrimaryButton(text:String, enabled:Boolean=true, onClick:()->Unit) {
 
 @Composable
 fun HomeScreen(state: UiState, open:(Screen)->Unit, roll:()->Unit) = Page {
+    Row(
+        Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        RoloamWordmark()
+        Text(
+            "BETA",
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            color = RoloamMuted,
+            letterSpacing = 1.4.sp
+        )
+    }
     JourneyHeader(state.preferences.transport, !state.rolling)
     DateStamp()
     Spacer(Modifier.height(20.dp))
@@ -130,6 +144,10 @@ fun HomeScreen(state: UiState, open:(Screen)->Unit, roll:()->Unit) = Page {
     } else {
         val durationText = when(state.preferences.duration){DurationChoice.ONE->"1 day";DurationChoice.TWO->"2 days";DurationChoice.THREE->"3 days";DurationChoice.AUTO->"a few days"}
         Text("Next free weekend detected.\nWeather decides the rhythm.\nYou could disappear for " + durationText + ".", lineHeight=24.sp)
+        HomeTravelArt(
+            mode = state.preferences.transport,
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+        )
         Spacer(Modifier.weight(1f))
         state.error?.let {
             Text(it, color=MaterialTheme.colorScheme.error, modifier=Modifier.padding(bottom=12.dp))
