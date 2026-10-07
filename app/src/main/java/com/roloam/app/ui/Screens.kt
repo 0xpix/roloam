@@ -203,7 +203,9 @@ fun RevealScreen(state: UiState, accept:()->Unit, reroll:()->Unit, back:()->Unit
     Spacer(Modifier.height(12.dp))
     val h=trip.destination.travelMinutes/60
     val m=trip.destination.travelMinutes%60
-    Text((if(h>0) h.toString()+"h " else "") + m + "m  ·  " + trip.destination.distanceKm.roundToInt() + " km  ·  " + (trip.stay?.let{if(it.category.contains("camp")) "camping found" else "stay found"} ?: "stay search"))
+    val travelPrefix = if (state.preferences.transport == TransportMode.TRAIN) "≈ " else ""
+    val stayText = if (trip.days == 1) "day trip" else (trip.stay?.let{if(it.category.contains("camp")) "camping found" else "stay found"} ?: "check stay")
+    Text(travelPrefix + (if(h>0) h.toString()+"h " else "") + m + "m  ·  " + trip.destination.distanceKm.roundToInt() + " km  ·  " + stayText)
     Spacer(Modifier.weight(1f))
     CityGlyph(trip.destination.name)
     Spacer(Modifier.weight(1f))
@@ -245,7 +247,10 @@ fun PlanScreen(state: UiState, open:(Screen)->Unit, select:(TripStop)->Unit, bac
     Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
         trip.itinerary.forEachIndexed { dayIndex, day ->
             Text("DAY " + (dayIndex+1) + " · " + day.date.format(DateTimeFormatter.ofPattern("EEE dd MMM")).uppercase(),fontSize=12.sp,fontWeight=FontWeight.Bold,modifier=Modifier.padding(vertical=10.dp))
-            if(dayIndex==0) TimelineRow("08:00","Depart "+trip.originLabel,travelText(trip.destination.travelMinutes),false) {}
+            if(dayIndex==0) {
+                val t = (if(state.preferences.transport == TransportMode.TRAIN) "estimated · " else "") + travelText(trip.destination.travelMinutes)
+                TimelineRow("08:00","Depart "+trip.originLabel,t,false) {}
+            }
             day.stops.forEach { stop ->
                 TimelineRow(stop.time,stop.place.name,"~ "+stop.durationMinutes+" min",true){select(stop)}
             }
