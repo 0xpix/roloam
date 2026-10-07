@@ -61,7 +61,7 @@ fun openingState(
             segment
         }
 
-        val ranges = Regex("""(d{1,2}:d{2})s*-s*(d{1,2}:d{2})""")
+        val ranges = Regex("""([0-9]{1,2}:[0-9]{2})[ ]*-[ ]*([0-9]{1,2}:[0-9]{2})""")
             .findAll(timePart)
             .mapNotNull { match ->
                 val start = parseTime(match.groupValues[1])
