@@ -138,7 +138,7 @@ fun HomeScreen(state: UiState, open:(Screen)->Unit, roll:()->Unit) = Page {
         Spacer(Modifier.height(14.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(10.dp)) {
             TinyChip("⌖  " + state.origin.label, Modifier.weight(1f)) { }
-            TinyChip("⚙  Preferences", Modifier.weight(1f)) { open(Screen.PREFERENCES) }
+            TinyChip("⚙  Settings", Modifier.weight(1f)) { open(Screen.SETTINGS) }
         }
         if (state.origin.isFallback) {
             Text("Location permission off · using Heidelberg", fontSize=11.sp, color=RoloamMuted, modifier=Modifier.padding(top=10.dp))
