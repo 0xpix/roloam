@@ -108,9 +108,10 @@ class LiveDataSource(private val network: Network) {
         val json = network.postForm("https://overpass-api.de/api/interpreter", "data", q)
         return overpassAdapter.fromJson(json)?.elements.orEmpty().mapNotNull { e ->
             val p = e.point() ?: return@mapNotNull null
-            val name = e.tags?.get("name") ?: return@mapNotNull null
-            val population = e.tags["population"]?.filter(Char::isDigit)?.toLongOrNull()
-            val country = e.tags["addr:country"] ?: e.tags["is_in:country"]
+            val tags = e.tags ?: return@mapNotNull null
+            val name = tags["name"] ?: return@mapNotNull null
+            val population = tags["population"]?.filter(Char::isDigit)?.toLongOrNull()
+            val country = tags["addr:country"] ?: tags["is_in:country"]
             CityRaw(name, country, p, population)
         }.distinctBy { it.name.lowercase() }
     }
