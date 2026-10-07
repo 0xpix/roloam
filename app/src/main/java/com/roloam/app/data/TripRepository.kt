@@ -94,7 +94,7 @@ class TripRepository(context: Context) {
         val weatherDeferred = async { runCatching { source.weather(chosen.point) }.getOrDefault(emptyList()) }
 
         val places = placesDeferred.await()
-        val stays = rankStays(staysDeferred.await(), prefs)
+        val rawStays = staysDeferred.await()
         val weather = weatherDeferred.await()
 
         val rankedPlaces = rankPlaces(places, chosen.point, prefs).ifEmpty {
@@ -102,6 +102,7 @@ class TripRepository(context: Context) {
         }
 
         val itinerary = buildItinerary(rankedPlaces, chosen, days, startDate, weather)
+        val stays = rankStays(rawStays, prefs, itinerary, chosen.point)
         TripPlan(
             originLabel = origin.label,
             origin = origin.point,
@@ -184,11 +185,48 @@ class TripRepository(context: Context) {
             .take(16)
     }
 
-    private fun rankStays(input: List<Stay>, prefs: TripPreferences): List<Stay> {
+    private fun rankStays(
+        input: List<Stay>,
+        prefs: TripPreferences,
+        itinerary: List<TripDay>,
+        destinationCenter: GeoPoint
+    ): List<Stay> {
+        val overnightTransitions = itinerary.zipWithNext().mapNotNull { (today, tomorrow) ->
+            val last = today.stops.lastOrNull()?.place?.point ?: return@mapNotNull null
+            val next = tomorrow.stops.firstOrNull()?.place?.point ?: return@mapNotNull null
+            last to next
+        }
+
         return input.sortedByDescending { stay ->
             val camp = stay.category == "camp_site" || stay.category == "caravan_site"
-            val preference = if (prefs.stay == StayPreference.CAMPING && camp) 5.0 else if (prefs.stay == StayPreference.ANY) 1.0 else 0.0
-            preference + (if (stay.website != null) 1.0 else 0.0) - stay.distanceFromCenterKm / 12.0
+
+            val preference = when {
+                prefs.stay == StayPreference.CAMPING && camp -> 6.0
+                prefs.stay == StayPreference.CAMPING -> 0.4
+                camp -> 1.8
+                else -> 1.2
+            }
+
+            val routeDetourKm = if (overnightTransitions.isEmpty()) {
+                haversine(destinationCenter, stay.point)
+            } else {
+                overnightTransitions.map { (last, next) ->
+                    val viaStay = haversine(last, stay.point) + haversine(stay.point, next)
+                    val direct = haversine(last, next)
+                    (viaStay - direct).coerceAtLeast(0.0)
+                }.average()
+            }
+
+            val usefulData = when {
+                stay.website != null && stay.openingHours != null -> 0.8
+                stay.website != null -> 0.5
+                else -> 0.0
+            }
+
+            preference +
+                usefulData -
+                routeDetourKm / 5.0 -
+                stay.distanceFromCenterKm / 35.0
         }
     }
 
