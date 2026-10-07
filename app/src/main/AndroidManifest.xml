@@ -6,7 +6,7 @@
     <application
         android:name=".RoloamApplication"
         android:allowBackup="true"
-        android:icon="@drawable/ic_launcher_roloam"
+        android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="Roloam."
         android:supportsRtl="true"
