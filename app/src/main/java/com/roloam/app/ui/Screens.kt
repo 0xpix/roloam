@@ -111,7 +111,12 @@ private fun PrimaryButton(text:String, enabled:Boolean=true, onClick:()->Unit) {
         enabled=enabled,
         modifier=Modifier.fillMaxWidth().height(58.dp),
         shape=RoundedCornerShape(18.dp),
-        colors=ButtonDefaults.buttonColors(containerColor=RoloamInk)
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            disabledContainerColor = RoloamMuted.copy(alpha = .22f),
+            disabledContentColor = RoloamMuted
+        )
     ) { Text(text.uppercase() + "  →", fontWeight=FontWeight.Bold, letterSpacing=1.2.sp) }
 }
 
