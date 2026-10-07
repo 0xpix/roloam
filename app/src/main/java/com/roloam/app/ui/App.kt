@@ -42,6 +42,14 @@ fun RoloamApp(vm: RoloamViewModel) {
         when (state.screen) {
             Screen.HOME -> HomeScreen(state, vm::open, vm::roll)
             Screen.PREFERENCES -> PreferencesScreen(state.preferences, vm::updatePreferences, vm::back)
+            Screen.SETTINGS -> SettingsScreen(
+                state = state,
+                open = vm::open,
+                back = vm::back,
+                checkUpdate = vm::checkForBetaUpdate,
+                downloadUpdate = vm::downloadBetaUpdate,
+                installUpdate = vm::installBetaUpdate
+            )
             Screen.REVEAL -> RevealScreen(state, vm::acceptTrip, vm::roll, vm::back)
             Screen.PLAN -> PlanScreen(state, vm::open, vm::selectStop, vm::back)
             Screen.MAP -> MapScreen(state, vm::back)
