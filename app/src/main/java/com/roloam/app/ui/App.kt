@@ -25,9 +25,19 @@ fun RoloamApp(vm: RoloamViewModel) {
     val state by vm.state.collectAsStateWithLifecycle()
     MaterialTheme(
         colorScheme = if (isSystemInDarkTheme()) {
-            darkColorScheme(primary = androidx.compose.ui.graphics.Color(0xFFE5D6B0), background = Night, surface = Night)
+            darkColorScheme(
+                primary = androidx.compose.ui.graphics.Color(0xFFE5D6B0),
+                onPrimary = Ink,
+                background = Night,
+                surface = Night
+            )
         } else {
-            lightColorScheme(primary = Ink, background = Cream, surface = Cream)
+            lightColorScheme(
+                primary = Ink,
+                onPrimary = Cream,
+                background = Cream,
+                surface = Cream
+            )
         },
         typography = MaterialTheme.typography.copy(
             displayLarge = MaterialTheme.typography.displayLarge.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
