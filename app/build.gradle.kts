@@ -14,9 +14,41 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+        buildConfigField("boolean", "BETA_CHANNEL", "false")
     }
 
-    buildFeatures { compose = true }
+    signingConfigs {
+        create("beta") {
+            storeFile = file("roloam-beta.keystore")
+            storePassword = "roloam-beta-only"
+            keyAlias = "roloam-beta"
+            keyPassword = "roloam-beta-only"
+        }
+    }
+
+    buildTypes {
+        getByName("debug") {
+            buildConfigField("boolean", "BETA_CHANNEL", "false")
+        }
+        create("beta") {
+            initWith(getByName("debug"))
+            applicationIdSuffix = ".beta"
+            versionNameSuffix = "-beta.1"
+            signingConfig = signingConfigs.getByName("beta")
+            isDebuggable = false
+            isMinifyEnabled = false
+            buildConfigField("boolean", "BETA_CHANNEL", "true")
+            matchingFallbacks += listOf("debug")
+        }
+        getByName("release") {
+            buildConfigField("boolean", "BETA_CHANNEL", "false")
+        }
+    }
+
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
