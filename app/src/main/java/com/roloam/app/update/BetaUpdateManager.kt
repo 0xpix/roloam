@@ -84,7 +84,7 @@ class BetaUpdateManager(private val context: Context) {
             val remote = latest.tag.removePrefix("v")
             val current = currentVersion()
 
-            if (isNewer(remote, current)) {
+            if (isNewerBetaVersion(remote, current)) {
                 UpdateCheck.Available(
                     BetaUpdate(
                         tag = latest.tag,
@@ -211,29 +211,32 @@ class BetaUpdateManager(private val context: Context) {
         return info.versionName ?: "0.0.0"
     }
 
-    private fun isNewer(remote: String, local: String): Boolean {
-        fun parts(value: String): List<Int> {
-            val normalized = value.removePrefix("v")
-            val base = normalized.substringBefore("-")
-            val beta = Regex("""beta[.-]?(\d+)""", RegexOption.IGNORE_CASE)
-                .find(normalized)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0
-            return base.split(".").map { it.toIntOrNull() ?: 0 }.let { numbers ->
-                listOf(
-                    numbers.getOrElse(0) { 0 },
-                    numbers.getOrElse(1) { 0 },
-                    numbers.getOrElse(2) { 0 },
-                    beta
-                )
-            }
-        }
 
-        val a = parts(remote)
-        val b = parts(local)
-        for (i in 0 until maxOf(a.size, b.size)) {
-            val left = a.getOrElse(i) { 0 }
-            val right = b.getOrElse(i) { 0 }
-            if (left != right) return left > right
+}
+
+
+internal fun isNewerBetaVersion(remote: String, local: String): Boolean {
+    fun parts(value: String): List<Int> {
+        val normalized = value.removePrefix("v")
+        val base = normalized.substringBefore("-")
+        val beta = Regex("""beta[.-]?(\d+)""", RegexOption.IGNORE_CASE)
+            .find(normalized)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0
+        return base.split(".").map { it.toIntOrNull() ?: 0 }.let { numbers ->
+            listOf(
+                numbers.getOrElse(0) { 0 },
+                numbers.getOrElse(1) { 0 },
+                numbers.getOrElse(2) { 0 },
+                beta
+            )
         }
-        return false
     }
+
+    val a = parts(remote)
+    val b = parts(local)
+    for (i in 0 until maxOf(a.size, b.size)) {
+        val left = a.getOrElse(i) { 0 }
+        val right = b.getOrElse(i) { 0 }
+        if (left != right) return left > right
+    }
+    return false
 }
