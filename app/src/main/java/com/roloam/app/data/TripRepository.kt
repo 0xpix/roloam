@@ -211,14 +211,38 @@ class TripRepository(context: Context) {
             val stops = mutableListOf<TripStop>()
             repeat(count) {
                 if (chosen.isEmpty()) return@repeat
-                val next = chosen.minByOrNull { p ->
+
+                var eligible = chosen.filter {
+                    openingState(it.openingHours, date, clock) != OpeningState.CLOSED
+                }
+
+                // If every known place is still closed, wait a little rather than schedule a
+                // museum or attraction before its listed opening time.
+                var waits = 0
+                while (eligible.isEmpty() && chosen.isNotEmpty() && waits < 6) {
+                    clock = clock.plusMinutes(30)
+                    waits += 1
+                    eligible = chosen.filter {
+                        openingState(it.openingHours, date, clock) != OpeningState.CLOSED
+                    }
+                }
+
+                val next = eligible.minByOrNull { p ->
                     val dist = haversine(previous, p.point)
                     val preferred = preferredHour(p.category, dayWeather)
                     dist * 2.2 + abs(clock.hour + clock.minute / 60.0 - preferred) * 0.8
                 } ?: return@repeat
+
                 chosen.remove(next)
                 val transitMin = ((haversine(previous, next.point) / 4.5) * 60).roundToInt().coerceIn(5, 45)
                 if (stops.isNotEmpty()) clock = clock.plusMinutes(transitMin.toLong())
+
+                // Re-check after transit. If the POI would be closed on arrival, skip it rather
+                // than presenting a plan that cannot actually be followed.
+                if (openingState(next.openingHours, date, clock) == OpeningState.CLOSED) {
+                    return@repeat
+                }
+
                 val visit = visitMinutes(next.category)
                 stops += TripStop(next, clock.format(DateTimeFormatter.ofPattern("HH:mm")), visit, whyNow(next.category, clock, dayWeather))
                 clock = clock.plusMinutes(visit.toLong())
