@@ -116,11 +116,43 @@ class TripRepository(context: Context) {
     }
 
     private fun score(d: Destination, days: Int, prefs: TripPreferences): Double {
-        val target = targetTravelMinutes(days, prefs.transport)
-        val travelFit = 1.0 - (abs(d.travelMinutes - target).toDouble() / target).coerceAtMost(1.0)
-        val pop = d.population?.let { (ln(it.toDouble().coerceAtLeast(1000.0)) - 6.9) / 7.0 } ?: 0.35
-        val cheapBias = if (prefs.budget == Budget.CHEAP && (d.population ?: 0) < 350_000) 0.15 else 0.0
-        return travelFit * 0.58 + pop.coerceIn(0.0, 1.0) * 0.22 + cheapBias + random.nextDouble(0.0, 0.28)
+        val targetMinutes = targetTravelMinutes(days, prefs.transport)
+        val targetKm = targetDistance(days, prefs.transport)
+
+        // A good random trip should feel worth the travel without consuming the whole day.
+        val travelFit = 1.0 -
+            (abs(d.travelMinutes - targetMinutes).toDouble() / targetMinutes)
+                .coerceIn(0.0, 1.0)
+        val distanceFit = 1.0 -
+            (abs(d.distanceKm - targetKm) / targetKm.coerceAtLeast(1.0))
+                .coerceIn(0.0, 1.0)
+
+        // Population is useful as a rough proxy for how dense the choice of things to do is,
+        // but we deliberately do not make "largest city wins" the default.
+        val cityScale = d.population
+            ?.let { (ln(it.toDouble().coerceAtLeast(1_000.0)) - 6.9) / 7.0 }
+            ?.coerceIn(0.0, 1.0)
+            ?: 0.32
+
+        val styleFit = when (prefs.style) {
+            TripStyle.CITY -> cityScale
+            TripStyle.NATURE -> 1.0 - cityScale
+            TripStyle.BOTH -> 1.0 - abs(cityScale - 0.55)
+        }.coerceIn(0.0, 1.0)
+
+        val budgetFit = when (prefs.budget) {
+            Budget.CHEAP -> (1.0 - cityScale * 0.72).coerceIn(0.0, 1.0)
+            Budget.NORMAL -> 0.72
+        }
+
+        // Randomness stays meaningful, but it can no longer rescue a poor travel-time match.
+        val discoveryJitter = random.nextDouble(0.0, 0.14)
+
+        return travelFit * 0.46 +
+            distanceFit * 0.18 +
+            styleFit * 0.20 +
+            budgetFit * 0.10 +
+            discoveryJitter
     }
 
     private fun weightedPick(pool: List<Destination>): Destination {
