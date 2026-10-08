@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.0-beta
+
+### Dynamic home
+- Replaces the static home hero with a live ASCII nature scene system.
+- Adds morning, daytime, evening, and night landscape variants.
+- Night scenes include moon and stars; daytime scenes use sun-based roaming art.
+- Adds subtle breathing and drift animation without turning the home screen into a busy animation.
+- Keeps mountains, pine trees, open terrain, and a free-roaming trail as the core visual language.
+- Adds a minimal FREE ROAM / NO FIXED ROUTE status line inspired by Nothing-style system UI.
+- Removes the static image from the rendered home experience entirely.
+
 ## 0.3.3-beta
 
 ### Home
