@@ -28,11 +28,8 @@
         android:pathData="M80,28 A9,9 0,1 1,80,46 A9,9 0,1 1,80,28" />
 
     <!-- dotted route -->
-    <path
-        android:fillColor="@android:color/transparent"
-        android:strokeColor="#1F1B16"
-        android:strokeWidth="5"
-        android:strokeLineCap="butt"
-        android:strokeDashArray="7,7"
-        android:pathData="M36,80 C52,82 58,76 58,65 C58,52 64,45 72,41" />
+    <path android:fillColor="@android:color/transparent" android:strokeColor="#1F1B16" android:strokeWidth="5" android:strokeLineCap="butt" android:pathData="M36,80 C40,80.5 43,80.5 46,79" />
+    <path android:fillColor="@android:color/transparent" android:strokeColor="#1F1B16" android:strokeWidth="5" android:strokeLineCap="butt" android:pathData="M50,76 C54,73 56,69 56,65" />
+    <path android:fillColor="@android:color/transparent" android:strokeColor="#1F1B16" android:strokeWidth="5" android:strokeLineCap="butt" android:pathData="M57,59 C58,54 60,50 63,47" />
+    <path android:fillColor="@android:color/transparent" android:strokeColor="#1F1B16" android:strokeWidth="5" android:strokeLineCap="butt" android:pathData="M67,44 C69,43 70,42 72,41" />
 </vector>
