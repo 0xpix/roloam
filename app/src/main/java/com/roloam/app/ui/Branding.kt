@@ -1,9 +1,7 @@
 package com.roloam.app.ui
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,11 +18,8 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.roloam.app.R
 import com.roloam.app.model.TransportMode
 
 @Composable
@@ -151,20 +146,8 @@ fun HomeTravelArt(
     mode: TransportMode,
     modifier: Modifier = Modifier
 ) {
-    // Transport still controls JourneyHeader; the approved artwork itself stays fixed.
-    when (mode) {
-        TransportMode.CAR,
-        TransportMode.TRAIN,
-        TransportMode.BIKE,
-        TransportMode.WALK -> Unit
-    }
-
-    Image(
-        painter = painterResource(R.drawable.home_hero),
-        contentDescription = "Pixel landscape with mountains, pine trees and a winding road",
+    HomeAsciiHero(
+        mode = mode,
         modifier = modifier
-            .fillMaxWidth()
-            .aspectRatio(706f / 519f),
-        contentScale = ContentScale.Fit
     )
 }

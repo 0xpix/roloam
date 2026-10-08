@@ -164,7 +164,26 @@ fun HomeScreen(state: UiState, open:(Screen)->Unit, roll:()->Unit) = Page {
             mode = state.preferences.transport,
             modifier = Modifier.fillMaxWidth()
         )
-        Spacer(Modifier.height(8.dp))
+        Row(
+            Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "FREE ROAM",
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                color = RoloamAccent,
+                letterSpacing = 1.5.sp
+            )
+            Text(
+                "NO FIXED ROUTE  ·  " + state.preferences.transport.name,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                color = RoloamMuted,
+                letterSpacing = 1.0.sp
+            )
+        }
         state.error?.let {
             Text(it, color=MaterialTheme.colorScheme.error, modifier=Modifier.padding(bottom=12.dp))
         }
