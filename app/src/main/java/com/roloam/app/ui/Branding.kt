@@ -168,7 +168,7 @@ fun HomeTravelArt(
             val levels = 4
             repeat(levels) { level ->
                 val yy = trunkTop - level * 6.dp.toPx() * scale
-                val half = (4f + level * 2.5f) * dp.toPx() * scale
+                val half = (4f + level * 2.5f).dp.toPx() * scale
                 val count = 3 + level * 2
                 repeat(count) { index ->
                     val t = if (count == 1) .5f else index / (count - 1f)
