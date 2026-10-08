@@ -51,7 +51,9 @@ jobs:
       - name: Verify beta version
         shell: bash
         run: |
-          VERSION="$(apkanalyzer manifest version-name app/build/outputs/apk/beta/app-beta.apk)"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
+          test -x "$AAPT"
+          VERSION="$("$AAPT" dump badging app/build/outputs/apk/beta/app-beta.apk | sed -n "s/.*versionName='\([^']*\)'.*/\1/p" | head -1)"
           test "$VERSION" = "${{ steps.beta_version.outputs.full }}"
 
       - uses: actions/upload-artifact@v4
