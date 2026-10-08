@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.2-beta
+
+### Home
+- Reworked the home hero illustration to better match the approved concept board.
+- Enlarged the scene and made the winding trail the visual anchor.
+- Added stronger layered depth with a dominant left mountain, long right ridge, denser foreground pines, and a clearer valley opening.
+- Reduced symmetry and made the campsite a subtle one-sided detail.
+- Tightened the intro → artwork → Roll a Trip spacing so the home screen reads as one composition.
+
 ## 0.3.1-beta
 
 ### Home
