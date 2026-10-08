@@ -216,11 +216,15 @@ private fun Choice(label:String, values:List<String>, selected:Int, onSelect:(In
         values.forEachIndexed { i, value ->
             Surface(
                 modifier=Modifier.weight(1f).fillMaxHeight().clickable{onSelect(i)},
-                color=if(i==selected) RoloamInk else androidx.compose.ui.graphics.Color.Transparent,
+                color = if (i == selected) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Transparent,
                 shape=RoundedCornerShape(11.dp)
             ) {
                 Box(contentAlignment=Alignment.Center) {
-                    Text(value,fontSize=11.sp,color=if(i==selected) RoloamCream else MaterialTheme.colorScheme.onBackground)
+                    Text(
+                        value,
+                        fontSize = 11.sp,
+                        color = if (i == selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onBackground
+                    )
                 }
             }
         }
