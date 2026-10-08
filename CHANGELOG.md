@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.1-beta
+
+### Home
+- Rebuilt the hero illustration again to more closely match the approved concept board.
+- Uses square pixel/stipple marks rather than smooth abstract dots.
+- Adds layered mountain silhouettes, denser pine clusters, valley texture, a winding trail, campsite detail, and a centered warm ring sun.
+- Removes the large weighted spacer below the artwork so the scene and Roll a Trip button read as one composition.
+
 ## 0.3.0-beta
 
 ### Home
