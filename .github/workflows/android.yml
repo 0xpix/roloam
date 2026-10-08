@@ -44,9 +44,9 @@ jobs:
 
       - name: Build beta APK
         run: >
-          gradle :app:assembleBeta --no-daemon
-          -Pandroid.injected.version.name=${{ steps.beta_version.outputs.full }}
-          -Pandroid.injected.version.code=${{ steps.beta_version.outputs.code }}
+          gradle --init-script gradle/roloam-version.init.gradle :app:assembleBeta --no-daemon
+          -ProloamVersionBase=${{ steps.beta_version.outputs.base }}
+          -ProloamVersionCode=${{ steps.beta_version.outputs.code }}
 
       - name: Verify beta version
         shell: bash
