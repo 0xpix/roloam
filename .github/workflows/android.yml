@@ -30,8 +30,29 @@ jobs:
       - name: Build debug APK
         run: gradle :app:assembleDebug --no-daemon
 
+      - name: Read beta version
+        id: beta_version
+        shell: bash
+        run: |
+          VERSION="$(tr -d '[:space:]' < BETA_VERSION)"
+          BASE="${VERSION%%-beta*}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE"
+          CODE=$((MAJOR * 1000000 + MINOR * 10000 + PATCH * 100))
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
+          echo "full=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+
       - name: Build beta APK
-        run: gradle :app:assembleBeta --no-daemon
+        run: >
+          gradle :app:assembleBeta --no-daemon
+          -Pandroid.injected.version.name=${{ steps.beta_version.outputs.base }}
+          -Pandroid.injected.version.code=${{ steps.beta_version.outputs.code }}
+
+      - name: Verify beta version
+        shell: bash
+        run: |
+          VERSION="$(apkanalyzer manifest version-name app/build/outputs/apk/beta/app-beta.apk)"
+          test "$VERSION" = "${{ steps.beta_version.outputs.full }}"
 
       - uses: actions/upload-artifact@v4
         with:
