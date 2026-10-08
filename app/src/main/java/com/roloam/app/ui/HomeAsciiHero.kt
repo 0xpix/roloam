@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.roloam.app.model.TransportMode
@@ -38,87 +39,85 @@ private fun phaseFor(hour: Int): NaturePhase = when (hour) {
     else -> NaturePhase.NIGHT
 }
 
-private val dayLandscape = """
-                   /\                      /\
-            /\    /  \        /\        /  \__
-       /\  /  \__/    \  /\  /  \  /\ /      \
-  /\__/  \/            \/  \/    \/  V        \
- /                                                \
-        ^      ^^            .            ^^      ^
-       /|\    /|\       .         .      /|\    /|\
-      /|||\  /|||\          .            /|||\  /|||\
- ___ /_|||_\/_|||_\ __________________ /_|||_\/_|||_\ ___
-             .          .      .   .
-                .   ___---___
-            __---'''       '''---__
-       __--'                     '--__
-    __'      .   .          .         '__
- __/_______________________________________\__
+private val morningLandscape = """
+              .       \  |  /       .
+        .              .-*-.
+                 .   .'     '.    .
+           /\       /         \       /\
+      /\  /  \____/           \____/  \  /\
+     /  \/                              \/  \
+ ___/                                        \___
+       Y       Y Y              Y        Y
+      /|\     /|\              /|\      /|\
+     /|||\   /|||\      .     /|||\    /|||\
+ ___/_|||_\_/_|||_\__________/_|||_\__/_|||_\___
+             .        .    .
+                 __..---..__
+            _..-'          '-.._
+        _.-'                    '-._
+ ____.-'____________________________'-.___
 """.trimIndent()
 
-private val morningLandscape = """
-                   .-.
-               .--'   '--.
-             .'           '.
-        /\                 /\        /\
-   /\  /  \      /\      /  \  /\  /  \__
-  /  \/    \____/  \____/    \/  \/      \
- /                                                \
-      ^      ^^^                         ^^       ^
-     /|\    /|||\        .             /|\     /|\
-    /|||\  /|||||\             .      /|||\   /|||\
- __/_|||_\/_|||||_\__________________/_|||_\_/_|||_\__
-               .     .       .
-                  ___---___
-             __---'       '---__
-        __--'                 '--__
-    __-'                         '-__
- __/__________________________________\__
+private val dayLandscape = """
+                     \  |  /
+                  --  ☼  --
+                     / | \
+        /\                           /\
+   /\  /  \____      /\       _____/  \  /\
+  /  \/       \_____/  \_____/         \/  \
+_/                                             \_
+      Y     Y Y                      Y      Y
+     /|\   /|\       .       .      /|\    /|\
+    /|||\ /|||\                   /|||\  /|||\
+___/_|||_V_|||_\_________________/_|||_\/_|||_\___
+          .       .      .
+              ___....___
+          _.-'          '-._
+      _.-'                  '-._
+  _.-'                         '-._
+_'_________________________________'_
 """.trimIndent()
 
 private val eveningLandscape = """
-                       .
-          .                            .
-                 _.-'''''-._
-              .-'           '-.
-        /\                       /\
-   /\  /  \      /\      /\    /  \__
-  /  \/    \____/  \____/  \__/      \
- /                                              \
-       ^^^                 .             ^^     ^
-      /|||\       .                     /|\   /|\
-     /|||||\              .            /|||\ /|||\
- ___/_|||||_\_________________________/_|||_V_|||_\__
-          .        .          .
-                    ___---___
-               __---'       '---__
-          __--'                 '--__
-      __-'                         '-__
- ___-'_________________________________'-___
+                .              .
+                         .-.
+              .        .'   '.
+                    .-'       '-.
+        /\                         /\
+   /\  /  \____      /\      ____/  \  /\
+  /  \/       \_____/  \____/        \/  \
+_/                                             \_
+     Y Y       Y                    Y      Y Y
+    /|\       /|\      .          /|\    /|\
+   /|||\     /|||\         .     /|||\  /|||\
+__/_|||_\___/_|||_\_____________/_|||_\/_|||_\___
+           .        .       .
+               ___.....___
+          __.-'         '-.__
+      _.-'                   '-._
+  _.-'                          '-._
+_'__________________________________'_
 """.trimIndent()
 
 private val nightLandscape = """
-        .        *             .          *
-   *          .        *              .
-               _..._             .
-             .:::::::.        *
-          .  :::::::::
-             ':::::::'
-               '::'
-        /\                 /\           /\
-   /\  /  \      /\      /  \     /\ /  \__
-  /  \/    \____/  \____/    \___/  V      \
- /                                               \
-       ^       ^^                       ^^^      ^
-      /|\     /|\         .           /|||\    /|\
-     /|||\   /|||\              .    /|||||\  /|||\
- ___/_|||_\_/_|||_\_________________/_|||||_\/_|||_\__
-                 .        .
-                     __---__
-                 __--'     '--__
-             __-'             '-__
-         __-'                   '-__
- ____---'___________________________'---____
+      *        .          *           .
+            .        .          *
+                       ☾
+   .                *         .              *
+        /\                           /\
+   /\  /  \____      /\       _____/  \  /\
+  /  \/       \_____/  \_____/         \/  \
+_/                                             \_
+       Y       Y Y                 Y       Y
+      /|\     /|\       *         /|\     /|\
+     /|||\   /|||\          .    /|||\   /|||\
+ ___/_|||_\_/_|||_\____________/_|||_\_/_|||_\___
+         .        *       .
+               ___.....___
+          __.-'         '-.__
+      _.-'                   '-._
+  _.-'                          '-._
+_'__________________________________'_
 """.trimIndent()
 
 @Composable
@@ -143,26 +142,25 @@ fun HomeAsciiHero(
     }
 
     val infinite = rememberInfiniteTransition(label = "ascii_nature")
-    val breathe by infinite.animateFloat(
-        initialValue = .84f,
-        targetValue = 1f,
+    val pulse by infinite.animateFloat(
+        initialValue = .78f,
+        targetValue = .94f,
         animationSpec = infiniteRepeatable(
-            animation = tween(3200, easing = FastOutSlowInEasing),
+            animation = tween(3400, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
-        label = "scene_breathe"
+        label = "ascii_pulse"
     )
-    val drift by infinite.animateFloat(
-        initialValue = -1.8f,
-        targetValue = 1.8f,
+    val floatY by infinite.animateFloat(
+        initialValue = -1f,
+        targetValue = 1f,
         animationSpec = infiniteRepeatable(
             animation = tween(5200, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
-        label = "scene_drift"
+        label = "ascii_float"
     )
 
-    // Transport remains represented by the animated route header above the scene.
     when (mode) {
         TransportMode.CAR,
         TransportMode.TRAIN,
@@ -173,7 +171,7 @@ fun HomeAsciiHero(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(268.dp),
+            .height(226.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
@@ -181,52 +179,36 @@ fun HomeAsciiHero(
             modifier = Modifier
                 .fillMaxWidth()
                 .graphicsLayer {
-                    alpha = breathe
-                    translationX = drift
+                    alpha = pulse
+                    translationY = floatY
                 },
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = .68f),
+            color = MaterialTheme.colorScheme.onBackground,
             fontFamily = FontFamily.Monospace,
             fontWeight = FontWeight.Normal,
-            fontSize = 7.2.sp,
-            lineHeight = 7.8.sp,
-            letterSpacing = (-0.45).sp,
-            maxLines = 22
+            fontSize = 10.6.sp,
+            lineHeight = 11.6.sp,
+            letterSpacing = (-0.9).sp,
+            textAlign = TextAlign.Center,
+            softWrap = false
         )
 
-        val celestial = when (phase) {
-            NaturePhase.MORNING -> "☼"
-            NaturePhase.DAY -> "☀"
-            NaturePhase.EVENING -> "◌"
-            NaturePhase.NIGHT -> "☾"
+        // Tiny ambient marker only; no detached phase label.
+        val marker = when (phase) {
+            NaturePhase.MORNING -> "05—09"
+            NaturePhase.DAY -> "09—17"
+            NaturePhase.EVENING -> "17—21"
+            NaturePhase.NIGHT -> "21—05"
         }
-        val label = when (phase) {
-            NaturePhase.MORNING -> "DAWN"
-            NaturePhase.DAY -> "ROAM"
-            NaturePhase.EVENING -> "GOLDEN HOUR"
-            NaturePhase.NIGHT -> "NIGHT ROAM"
-        }
-
         Text(
-            text = celestial,
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .offset(y = 5.dp)
-                .graphicsLayer { alpha = .72f + (breathe - .84f) },
-            color = RoloamAccent,
-            fontFamily = FontFamily.Monospace,
-            fontSize = if (phase == NaturePhase.NIGHT) 24.sp else 21.sp
-        )
-
-        Text(
-            text = label,
+            text = marker,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .offset(y = (-2).dp),
-            color = RoloamMuted,
+            color = RoloamMuted.copy(alpha = .65f),
             fontFamily = FontFamily.Monospace,
             fontWeight = FontWeight.Bold,
-            fontSize = 8.sp,
-            letterSpacing = 1.4.sp
+            fontSize = 7.sp,
+            letterSpacing = 1.0.sp
         )
     }
 }
