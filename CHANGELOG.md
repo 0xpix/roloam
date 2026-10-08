@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.3.0-beta
+
+### Home
+- Rebuilt the hero illustration again to match the approved concept more closely: dense stippled mountain layers, pine clusters, valley texture, winding path, campsite detail, and warm ring sun.
+- Removed the sparse abstract look from the previous beta.
+
+### Weather
+- Added a dedicated Weather screen for the rolled trip.
+- Fetches hourly temperature, precipitation probability, wind and weather code from Open-Meteo.
+- Calculates a practical best morning departure window from rain, wind and cold penalties.
+- Shows compact hourly forecast points for each trip day.
+- Falls back safely when hourly forecast data is unavailable.
+
+### Packing
+- Added a real trip-specific packing checklist.
+- Adapts to trip duration, camping preference, transport mode and forecast.
+- Adds rain gear, warm layers or sunscreen only when the weather supports it.
+- Adds bike, train, walk or car-specific items.
+- Tracks checklist progress locally while the screen is open.
+
+### Plan
+- Added Weather and Pack actions directly to the trip plan.
+- Kept Map, Stay and Start easy to reach without adding a permanent navigation bar.
+
+### Beta pipeline
+- BETA_VERSION is now the source used by CI for beta APK versioning.
+- CI verifies the APK's installed version name before a beta can be published.
+
 ## 0.2.0-beta
 
 ### Branding
