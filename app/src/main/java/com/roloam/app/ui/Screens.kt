@@ -109,15 +109,22 @@ private fun PrimaryButton(text:String, enabled:Boolean=true, onClick:()->Unit) {
     Button(
         onClick=onClick,
         enabled=enabled,
-        modifier=Modifier.fillMaxWidth().height(58.dp),
-        shape=RoundedCornerShape(18.dp),
+        modifier=Modifier.fillMaxWidth().height(62.dp),
+        shape=RoundedCornerShape(22.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = MaterialTheme.colorScheme.primary,
             contentColor = MaterialTheme.colorScheme.onPrimary,
             disabledContainerColor = RoloamMuted.copy(alpha = .22f),
             disabledContentColor = RoloamMuted
         )
-    ) { Text(text.uppercase() + "  →", fontWeight=FontWeight.Bold, letterSpacing=1.2.sp) }
+    ) {
+        Text(
+            text.uppercase() + "   →",
+            fontWeight = FontWeight.Bold,
+            fontSize = 13.sp,
+            letterSpacing = 1.8.sp
+        )
+    }
 }
 
 @Composable
@@ -172,7 +179,13 @@ fun HomeScreen(state: UiState, open:(Screen)->Unit, roll:()->Unit) = Page {
 
 @Composable
 private fun TinyChip(text:String, modifier:Modifier=Modifier, onClick:()->Unit) {
-    OutlinedButton(onClick=onClick, modifier=modifier.height(42.dp), shape=RoundedCornerShape(14.dp), contentPadding=PaddingValues(horizontal=10.dp)) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = modifier.height(48.dp),
+        shape = RoundedCornerShape(16.dp),
+        contentPadding = PaddingValues(horizontal = 10.dp),
+        border = BorderStroke(1.dp, RoloamMuted.copy(alpha = .55f))
+    ) {
         Text(text, fontSize=11.sp, maxLines=1, overflow=TextOverflow.Ellipsis)
     }
 }
