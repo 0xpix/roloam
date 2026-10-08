@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.3-beta
+
+### Home
+- Replaces the procedural mountain renderer with the exact approved hero artwork supplied for the app.
+- Preserves the artwork's original 706:519 aspect ratio.
+- Removes the repeated visual approximation cycle so the home page now uses the reference composition directly.
+
 ## 0.3.2-beta
 
 ### Home
