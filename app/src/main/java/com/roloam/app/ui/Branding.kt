@@ -120,6 +120,26 @@ fun RoloamWordmark(modifier: Modifier = Modifier) {
 }
 
 @Composable
+fun RoloamSectionBar(
+    label: String,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RoloamWordmark()
+        Spacer(Modifier.weight(1f))
+        androidx.compose.material3.Text(
+            label.uppercase(),
+            color = RoloamMuted,
+            fontSize = 10.dp.value.sp,
+            letterSpacing = 1.4.dp.value.sp
+        )
+    }
+}
+
+@Composable
 fun HomeTravelArt(
     mode: TransportMode,
     modifier: Modifier = Modifier
