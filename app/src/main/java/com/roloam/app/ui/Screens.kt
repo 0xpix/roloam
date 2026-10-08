@@ -158,9 +158,9 @@ fun HomeScreen(state: UiState, open:(Screen)->Unit, roll:()->Unit) = Page {
         Text("Next free weekend detected.\nWeather decides the rhythm.\nYou could disappear for " + durationText + ".", lineHeight=24.sp)
         HomeTravelArt(
             mode = state.preferences.transport,
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
         )
-        Spacer(Modifier.weight(1f))
+        Spacer(Modifier.height(12.dp))
         state.error?.let {
             Text(it, color=MaterialTheme.colorScheme.error, modifier=Modifier.padding(bottom=12.dp))
         }
