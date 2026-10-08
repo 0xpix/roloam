@@ -216,27 +216,37 @@ class BetaUpdateManager(private val context: Context) {
 
 
 internal fun isNewerBetaVersion(remote: String, local: String): Boolean {
-    fun parts(value: String): List<Int> {
-        val normalized = value.removePrefix("v")
+    data class Version(val major: Int, val minor: Int, val patch: Int, val betaRevision: Int)
+
+    fun parse(value: String): Version {
+        val normalized = value.trim().removePrefix("v").lowercase()
         val base = normalized.substringBefore("-")
-        val beta = Regex("""beta[.-]?(\d+)""", RegexOption.IGNORE_CASE)
-            .find(normalized)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0
-        return base.split(".").map { it.toIntOrNull() ?: 0 }.let { numbers ->
-            listOf(
-                numbers.getOrElse(0) { 0 },
-                numbers.getOrElse(1) { 0 },
-                numbers.getOrElse(2) { 0 },
-                beta
-            )
-        }
+        val numbers = base.split(".").map { it.toIntOrNull() ?: 0 }
+
+        // "0.2.0-beta" is the normal Roloam beta name. A numbered suffix is still
+        // understood for compatibility with older installs such as 0.1.0-beta.2.
+        val betaRevision = Regex("""(?:^|[-.])beta(?:[.-]?(\d+))?""")
+            .find(normalized)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.toIntOrNull()
+            ?: 0
+
+        return Version(
+            major = numbers.getOrElse(0) { 0 },
+            minor = numbers.getOrElse(1) { 0 },
+            patch = numbers.getOrElse(2) { 0 },
+            betaRevision = betaRevision
+        )
     }
 
-    val a = parts(remote)
-    val b = parts(local)
-    for (i in 0 until maxOf(a.size, b.size)) {
-        val left = a.getOrElse(i) { 0 }
-        val right = b.getOrElse(i) { 0 }
-        if (left != right) return left > right
+    val a = parse(remote)
+    val b = parse(local)
+
+    return when {
+        a.major != b.major -> a.major > b.major
+        a.minor != b.minor -> a.minor > b.minor
+        a.patch != b.patch -> a.patch > b.patch
+        else -> a.betaRevision > b.betaRevision
     }
-    return false
 }
