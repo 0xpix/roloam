@@ -66,6 +66,8 @@ fun RoloamApp(vm: RoloamViewModel) {
             Screen.STAY -> StayScreen(state, vm::back)
             Screen.PLACE -> PlaceScreen(state, vm::back)
             Screen.NOW -> NowScreen(state, vm::back)
+            Screen.WEATHER -> WeatherScreen(state, vm::back)
+            Screen.PACKING -> PackingScreen(state, vm::back)
         }
     }
 }

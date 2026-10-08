@@ -16,7 +16,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-enum class Screen { HOME, PREFERENCES, SETTINGS, REVEAL, PLAN, MAP, STAY, PLACE, NOW }
+enum class Screen { HOME, PREFERENCES, SETTINGS, REVEAL, PLAN, MAP, STAY, PLACE, NOW, WEATHER, PACKING }
 
 data class UiState(
     val screen: Screen = Screen.HOME,
@@ -57,7 +57,7 @@ class RoloamViewModel(app: Application) : AndroidViewModel(app) {
             Screen.HOME -> Screen.HOME
             Screen.PREFERENCES, Screen.SETTINGS -> Screen.HOME
             Screen.REVEAL -> Screen.HOME
-            Screen.PLAN, Screen.MAP, Screen.STAY, Screen.PLACE, Screen.NOW -> Screen.PLAN
+            Screen.PLAN, Screen.MAP, Screen.STAY, Screen.PLACE, Screen.NOW, Screen.WEATHER, Screen.PACKING -> Screen.PLAN
         }
         _state.value = _state.value.copy(screen = target, selectedStop = null)
     }

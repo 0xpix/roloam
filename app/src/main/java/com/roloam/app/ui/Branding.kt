@@ -150,173 +150,177 @@ fun HomeTravelArt(
     val muted = RoloamMuted
     val accent = RoloamAccent
 
-    Canvas(modifier.height(214.dp)) {
+    Canvas(modifier.height(232.dp)) {
         val w = size.width
         val h = size.height
-        val dot = 1.35.dp.toPx()
+        val px = 1.18.dp.toPx()
 
-        fun dottedPolyline(
+        fun dots(
             points: List<Offset>,
-            colorAlpha: Float = .62f,
-            spacingDp: Float = 5.4f,
-            radiusDp: Float = 1.15f
+            alpha: Float = .58f,
+            spacing: Float = 3.7f,
+            radius: Float = 1.0f
         ) {
-            val spacing = spacingDp.dp.toPx()
-            val radius = radiusDp.dp.toPx()
             points.zipWithNext().forEach { (a, b) ->
                 val dx = b.x - a.x
                 val dy = b.y - a.y
                 val distance = kotlin.math.sqrt(dx * dx + dy * dy).coerceAtLeast(1f)
-                val steps = (distance / spacing).toInt().coerceAtLeast(1)
-                for (i in 0..steps) {
-                    val t = i / steps.toFloat()
+                val count = (distance / spacing.dp.toPx()).toInt().coerceAtLeast(1)
+                repeat(count + 1) { i ->
+                    val t = i / count.toFloat()
                     drawCircle(
-                        color = ink.copy(alpha = colorAlpha),
-                        radius = radius,
-                        center = Offset(a.x + dx * t, a.y + dy * t)
+                        ink.copy(alpha = alpha),
+                        radius.dp.toPx(),
+                        Offset(a.x + dx * t, a.y + dy * t)
                     )
                 }
             }
         }
 
-        fun pixelTree(x: Float, ground: Float, scale: Float, alpha: Float = .58f) {
-            val trunkTop = ground - 10.dp.toPx() * scale
+        fun pine(x: Float, ground: Float, scale: Float, alpha: Float) {
             drawLine(
-                color = ink.copy(alpha = alpha),
-                start = Offset(x, trunkTop),
-                end = Offset(x, ground),
-                strokeWidth = 1.dp.toPx()
+                ink.copy(alpha = alpha),
+                Offset(x, ground - 20.dp.toPx() * scale),
+                Offset(x, ground),
+                1.dp.toPx()
             )
-            val levels = 4
-            repeat(levels) { level ->
-                val yy = trunkTop - level * 6.dp.toPx() * scale
-                val half = (4f + level * 2.5f).dp.toPx() * scale
-                val count = 3 + level * 2
-                repeat(count) { index ->
-                    val t = if (count == 1) .5f else index / (count - 1f)
+            repeat(5) { level ->
+                val y = ground - (6 + level * 4).dp.toPx() * scale
+                val half = (4 + level * 1.9f).dp.toPx() * scale
+                val count = 4 + level * 2
+                repeat(count) { i ->
+                    val t = i / (count - 1f)
                     drawCircle(
-                        color = ink.copy(alpha = alpha),
-                        radius = dot * scale,
-                        center = Offset(x - half + half * 2f * t, yy)
+                        ink.copy(alpha = alpha),
+                        px * scale,
+                        Offset(x - half + 2f * half * t, y)
                     )
                 }
             }
         }
 
-        // Small warm sun: ring only, like the approved mock-up.
-        drawCircle(
-            color = accent.copy(alpha = .82f),
-            radius = 12.dp.toPx(),
-            center = Offset(w * .31f, h * .27f),
-            style = Stroke(width = 1.5.dp.toPx())
-        )
+        fun stippleMountain(
+            peakX: Float,
+            peakY: Float,
+            leftX: Float,
+            rightX: Float,
+            baseY: Float,
+            alpha: Float,
+            rows: Int
+        ) {
+            val left = Offset(leftX, baseY)
+            val peak = Offset(peakX, peakY)
+            val right = Offset(rightX, baseY)
+            dots(listOf(left, peak, right), alpha = alpha, spacing = 3.4f, radius = .95f)
 
-        // Distant left and right mountain groups.
-        dottedPolyline(
-            listOf(
-                Offset(w * .03f, h * .48f),
-                Offset(w * .13f, h * .37f),
-                Offset(w * .21f, h * .46f),
-                Offset(w * .27f, h * .40f)
-            ),
-            colorAlpha = .46f,
-            spacingDp = 4.6f
-        )
-        dottedPolyline(
-            listOf(
-                Offset(w * .61f, h * .42f),
-                Offset(w * .72f, h * .31f),
-                Offset(w * .79f, h * .40f),
-                Offset(w * .87f, h * .34f),
-                Offset(w * .96f, h * .44f)
-            ),
-            colorAlpha = .50f,
-            spacingDp = 4.6f
-        )
-
-        // Main mountain ridge, lower and wider.
-        dottedPolyline(
-            listOf(
-                Offset(w * .12f, h * .62f),
-                Offset(w * .25f, h * .53f),
-                Offset(w * .34f, h * .58f),
-                Offset(w * .48f, h * .45f),
-                Offset(w * .61f, h * .57f),
-                Offset(w * .73f, h * .48f),
-                Offset(w * .90f, h * .61f)
-            ),
-            colorAlpha = .68f,
-            spacingDp = 4.0f,
-            radiusDp = 1.2f
-        )
-
-        // Sparse tree line.
-        listOf(
-            .07f to .72f to .75f,
-            .11f to .75f to .58f,
-            .16f to .69f to .88f,
-            .21f to .73f to .64f,
-            .77f to .71f to .65f,
-            .82f to .68f to .90f,
-            .88f to .73f to .63f,
-            .93f to .70f to .78f
-        ).forEach { nested ->
-            val pair = nested.first
-            pixelTree(
-                x = w * pair.first,
-                ground = h * pair.second,
-                scale = nested.second,
-                alpha = .52f
-            )
-        }
-
-        // Pixel terrain / field texture.
-        for (row in 0..3) {
-            val y = h * (.72f + row * .045f)
-            val startX = w * (.27f + row * .025f)
-            val endX = w * (.88f - row * .015f)
-            var x = startX
-            while (x < endX) {
-                drawCircle(
-                    color = muted.copy(alpha = .36f),
-                    radius = .8.dp.toPx(),
-                    center = Offset(x, y)
-                )
-                x += (6 + (row % 2) * 2).dp.toPx()
+            repeat(rows) { row ->
+                val yT = (row + 1f) / (rows + 1f)
+                val y = peakY + (baseY - peakY) * yT
+                val leftAtY = peakX + (leftX - peakX) * yT
+                val rightAtY = peakX + (rightX - peakX) * yT
+                val step = (6 + row % 2 * 2).dp.toPx()
+                var x = leftAtY + step * .4f
+                while (x < rightAtY) {
+                    val rhythm = (((x / step).toInt() + row) % 3)
+                    if (rhythm != 1) {
+                        drawCircle(
+                            ink.copy(alpha = alpha * .46f),
+                            .75.dp.toPx(),
+                            Offset(x, y)
+                        )
+                    }
+                    x += step
+                }
             }
         }
 
-        // Winding dotted path into the landscape.
-        val road = listOf(
-            Offset(w * .36f, h * .94f),
-            Offset(w * .31f, h * .89f),
-            Offset(w * .37f, h * .85f),
-            Offset(w * .47f, h * .84f),
-            Offset(w * .52f, h * .79f),
-            Offset(w * .48f, h * .74f),
-            Offset(w * .56f, h * .70f)
-        )
-        dottedPolyline(
-            road,
-            colorAlpha = .74f,
-            spacingDp = 3.4f,
-            radiusDp = 1.05f
+        // Thin warm sun from the original concept.
+        drawCircle(
+            accent.copy(alpha = .78f),
+            13.dp.toPx(),
+            Offset(w * .31f, h * .24f),
+            style = Stroke(1.3.dp.toPx())
         )
 
-        // A tiny campsite glyph hidden in the scene.
-        val tentX = w * .71f
-        val tentY = h * .77f
-        drawLine(ink.copy(alpha=.50f), Offset(tentX-7.dp.toPx(),tentY+6.dp.toPx()), Offset(tentX,tentY-5.dp.toPx()), 1.dp.toPx())
-        drawLine(ink.copy(alpha=.50f), Offset(tentX,tentY-5.dp.toPx()), Offset(tentX+7.dp.toPx(),tentY+6.dp.toPx()), 1.dp.toPx())
-        drawLine(ink.copy(alpha=.50f), Offset(tentX-7.dp.toPx(),tentY+6.dp.toPx()), Offset(tentX+7.dp.toPx(),tentY+6.dp.toPx()), 1.dp.toPx())
+        // Background peaks.
+        stippleMountain(w*.13f,h*.35f,w*.01f,w*.28f,h*.57f,.32f,5)
+        stippleMountain(w*.76f,h*.28f,w*.57f,w*.96f,h*.58f,.34f,6)
+        stippleMountain(w*.48f,h*.42f,w*.24f,w*.72f,h*.68f,.48f,7)
 
-        // Transport choice is represented above by JourneyHeader. Touch the value here so
-        // this illustration stays visually stable instead of changing layout per mode.
-        when (mode) {
-            TransportMode.CAR,
-            TransportMode.TRAIN,
-            TransportMode.BIKE,
-            TransportMode.WALK -> Unit
+        // Foreground ridge: denser, like the original concept board.
+        dots(
+            listOf(
+                Offset(w*.02f,h*.66f),
+                Offset(w*.16f,h*.57f),
+                Offset(w*.28f,h*.62f),
+                Offset(w*.42f,h*.51f),
+                Offset(w*.56f,h*.64f),
+                Offset(w*.68f,h*.55f),
+                Offset(w*.83f,h*.61f),
+                Offset(w*.98f,h*.52f)
+            ),
+            alpha=.72f,
+            spacing=3.2f,
+            radius=1.0f
+        )
+
+        // Forest clusters on both sides.
+        val trees = listOf(
+            floatArrayOf(.04f,.78f,.72f), floatArrayOf(.075f,.73f,.88f),
+            floatArrayOf(.11f,.79f,.64f), floatArrayOf(.145f,.75f,.80f),
+            floatArrayOf(.18f,.81f,.58f), floatArrayOf(.22f,.77f,.67f),
+            floatArrayOf(.76f,.78f,.62f), floatArrayOf(.80f,.73f,.85f),
+            floatArrayOf(.845f,.80f,.62f), floatArrayOf(.89f,.75f,.78f),
+            floatArrayOf(.94f,.80f,.58f)
+        )
+        trees.forEachIndexed { i, t ->
+            pine(w*t[0], h*t[1], t[2], if(i%2==0) .52f else .62f)
+        }
+
+        // Valley texture / little fields.
+        repeat(6) { row ->
+            val y = h * (.69f + row * .036f)
+            val x0 = w * (.25f + row * .014f)
+            val x1 = w * (.82f - row * .02f)
+            var x = x0
+            val step = (5 + row % 3).dp.toPx()
+            while (x < x1) {
+                drawCircle(
+                    muted.copy(alpha = .28f + row*.025f),
+                    .7.dp.toPx(),
+                    Offset(x, y)
+                )
+                x += step
+            }
+        }
+
+        // Winding road / river from foreground into the valley.
+        dots(
+            listOf(
+                Offset(w*.42f,h*.98f),
+                Offset(w*.34f,h*.93f),
+                Offset(w*.38f,h*.88f),
+                Offset(w*.51f,h*.87f),
+                Offset(w*.56f,h*.82f),
+                Offset(w*.51f,h*.78f),
+                Offset(w*.58f,h*.73f),
+                Offset(w*.55f,h*.69f)
+            ),
+            alpha=.76f,
+            spacing=2.9f,
+            radius=.95f
+        )
+
+        // Tiny campsite, intentionally part of the landscape rather than a UI icon.
+        val tx=w*.69f
+        val ty=h*.80f
+        drawLine(ink.copy(alpha=.54f),Offset(tx-8.dp.toPx(),ty+7.dp.toPx()),Offset(tx,ty-6.dp.toPx()),1.dp.toPx())
+        drawLine(ink.copy(alpha=.54f),Offset(tx,ty-6.dp.toPx()),Offset(tx+8.dp.toPx(),ty+7.dp.toPx()),1.dp.toPx())
+        drawLine(ink.copy(alpha=.54f),Offset(tx-8.dp.toPx(),ty+7.dp.toPx()),Offset(tx+8.dp.toPx(),ty+7.dp.toPx()),1.dp.toPx())
+
+        // Mode stays in JourneyHeader; keep the illustration serene and consistent.
+        when(mode) {
+            TransportMode.CAR, TransportMode.TRAIN, TransportMode.BIKE, TransportMode.WALK -> Unit
         }
     }
 }

@@ -5,6 +5,7 @@ import com.roloam.app.model.GeoPoint
 import com.roloam.app.model.Place
 import com.roloam.app.model.Stay
 import com.roloam.app.model.WeatherDay
+import com.roloam.app.model.WeatherHour
 import com.squareup.moshi.Json
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
@@ -79,7 +80,10 @@ data class OsrmTable(
     val distances: List<List<Double?>>? = null
 )
 
-data class OpenMeteo(val daily: OpenMeteoDaily? = null)
+data class OpenMeteo(
+    val daily: OpenMeteoDaily? = null,
+    val hourly: OpenMeteoHourly? = null
+)
 data class OpenMeteoDaily(
     val time: List<String> = emptyList(),
     @Json(name = "weather_code") val weatherCode: List<Int> = emptyList(),
@@ -88,6 +92,14 @@ data class OpenMeteoDaily(
     @Json(name = "precipitation_probability_max") val precipitation: List<Int?> = emptyList(),
     val sunrise: List<String?> = emptyList(),
     val sunset: List<String?> = emptyList()
+)
+
+data class OpenMeteoHourly(
+    val time: List<String> = emptyList(),
+    @Json(name = "temperature_2m") val temperature: List<Double?> = emptyList(),
+    @Json(name = "precipitation_probability") val precipitation: List<Int?> = emptyList(),
+    @Json(name = "wind_speed_10m") val wind: List<Double?> = emptyList(),
+    @Json(name = "weather_code") val weatherCode: List<Int> = emptyList()
 )
 
 class LiveDataSource(private val network: Network) {
@@ -197,19 +209,43 @@ class LiveDataSource(private val network: Network) {
     suspend fun weather(center: GeoPoint): List<WeatherDay> {
         val params = "latitude=${center.lat}&longitude=${center.lon}" +
             "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset" +
+            "&hourly=temperature_2m,precipitation_probability,wind_speed_10m,weather_code" +
             "&timezone=auto&forecast_days=16"
-        val data = weatherAdapter.fromJson(network.get("https://api.open-meteo.com/v1/forecast?" + params))
-            ?.daily ?: return emptyList()
-        return data.time.indices.mapNotNull { i ->
+        val payload = weatherAdapter.fromJson(
+            network.get("https://api.open-meteo.com/v1/forecast?" + params)
+        ) ?: return emptyList()
+
+        val daily = payload.daily ?: return emptyList()
+        val hourly = payload.hourly
+
+        val hoursByDate = if (hourly == null) {
+            emptyMap()
+        } else {
+            hourly.time.indices.mapNotNull { i ->
+                val raw = hourly.time.getOrNull(i) ?: return@mapNotNull null
+                val date = raw.substringBefore("T")
+                date to WeatherHour(
+                    time = raw.substringAfter("T", raw),
+                    temperatureC = hourly.temperature.getOrNull(i),
+                    precipitationProbability = hourly.precipitation.getOrNull(i),
+                    windKph = hourly.wind.getOrNull(i),
+                    code = hourly.weatherCode.getOrElse(i) { -1 }
+                )
+            }.groupBy({ it.first }, { it.second })
+        }
+
+        return daily.time.indices.mapNotNull { i ->
             runCatching {
+                val dateRaw = daily.time[i]
                 WeatherDay(
-                    LocalDate.parse(data.time[i]),
-                    data.weatherCode.getOrElse(i) { -1 },
-                    data.max.getOrNull(i),
-                    data.min.getOrNull(i),
-                    data.precipitation.getOrNull(i),
-                    data.sunrise.getOrNull(i),
-                    data.sunset.getOrNull(i)
+                    date = LocalDate.parse(dateRaw),
+                    code = daily.weatherCode.getOrElse(i) { -1 },
+                    maxC = daily.max.getOrNull(i),
+                    minC = daily.min.getOrNull(i),
+                    precipitationProbability = daily.precipitation.getOrNull(i),
+                    sunrise = daily.sunrise.getOrNull(i),
+                    sunset = daily.sunset.getOrNull(i),
+                    hours = hoursByDate[dateRaw].orEmpty()
                 )
             }.getOrNull()
         }

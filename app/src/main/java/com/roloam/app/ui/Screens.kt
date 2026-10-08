@@ -353,10 +353,16 @@ fun PlanScreen(state: UiState, open:(Screen)->Unit, select:(TripStop)->Unit, bac
             }
         }
     }
-    Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-        TinyChip("MAP",Modifier.weight(1f)){open(Screen.MAP)}
-        TinyChip("STAY",Modifier.weight(1f)){open(Screen.STAY)}
-        TinyChip("START",Modifier.weight(1f)){open(Screen.NOW)}
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TinyChip("MAP", Modifier.weight(1f)) { open(Screen.MAP) }
+            TinyChip("WEATHER", Modifier.weight(1f)) { open(Screen.WEATHER) }
+            TinyChip("STAY", Modifier.weight(1f)) { open(Screen.STAY) }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TinyChip("PACK", Modifier.weight(1f)) { open(Screen.PACKING) }
+            TinyChip("START", Modifier.weight(1f)) { open(Screen.NOW) }
+        }
     }
 }
 

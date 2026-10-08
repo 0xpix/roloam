@@ -36,10 +36,27 @@ jobs:
         run: |
           VERSION="$(tr -d '[:space:]' < BETA_VERSION)"
           test -n "$VERSION"
+          BASE="${VERSION%%-beta*}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE"
+          CODE=$((MAJOR * 1000000 + MINOR * 10000 + PATCH * 100))
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
 
       - name: Build beta APK
-        run: gradle :app:assembleBeta --no-daemon
+        run: >
+          gradle --init-script gradle/roloam-version.init.gradle :app:assembleBeta --no-daemon
+          -ProloamVersionBase=${{ steps.version.outputs.base }}
+          -ProloamVersionCode=${{ steps.version.outputs.code }}
+
+      - name: Verify beta version
+        shell: bash
+        run: |
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
+          test -x "$AAPT"
+          VERSION="$("$AAPT" dump badging app/build/outputs/apk/beta/app-beta.apk | sed -n "s/.*versionName='\([^']*\)'.*/\1/p" | head -1)"
+          echo "APK version: $VERSION"
+          test "$VERSION" = "${{ steps.version.outputs.version }}"
 
       - name: Name release APK
         shell: bash

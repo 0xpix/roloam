@@ -48,6 +48,14 @@ data class Stay(
     val distanceFromCenterKm: Double = 0.0
 )
 
+data class WeatherHour(
+    val time: String,
+    val temperatureC: Double?,
+    val precipitationProbability: Int?,
+    val windKph: Double?,
+    val code: Int
+)
+
 data class WeatherDay(
     val date: LocalDate,
     val code: Int,
@@ -55,7 +63,8 @@ data class WeatherDay(
     val minC: Double?,
     val precipitationProbability: Int?,
     val sunrise: String?,
-    val sunset: String?
+    val sunset: String?,
+    val hours: List<WeatherHour> = emptyList()
 )
 
 data class TripStop(

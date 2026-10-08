@@ -1,0 +1,18 @@
+// CI/local beta version override.
+// Usage:
+// gradle --init-script gradle/roloam-version.init.gradle :app:assembleBeta \
+//   -ProloamVersionBase=0.3.0 -ProloamVersionCode=30000
+
+gradle.beforeProject { project ->
+    project.plugins.withId("com.android.application") {
+        def versionBase = project.findProperty("roloamVersionBase")?.toString()
+        def versionCodeRaw = project.findProperty("roloamVersionCode")?.toString()
+        if (versionBase == null || versionCodeRaw == null) return
+
+        def androidComponents = project.extensions.getByName("androidComponents")
+        androidComponents.finalizeDsl { android ->
+            android.defaultConfig.versionName = versionBase
+            android.defaultConfig.versionCode = Integer.parseInt(versionCodeRaw)
+        }
+    }
+}
