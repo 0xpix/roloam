@@ -5,6 +5,7 @@ on:
     branches:
       - "release/beta"
     tags:
+      - "v*-beta"
       - "v*-beta.*"
 
 permissions:

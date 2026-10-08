@@ -6,22 +6,27 @@ import org.junit.Test
 
 class BetaVersionTest {
     @Test
-    fun newerBetaSequenceWins() {
-        assertTrue(isNewerBetaVersion("0.1.0-beta.2", "0.1.0-beta.1"))
+    fun simpleBetaMinorVersionWins() {
+        assertTrue(isNewerBetaVersion("0.2.0-beta", "0.1.0-beta.2"))
     }
 
     @Test
-    fun equalBetaIsNotAnUpdate() {
-        assertFalse(isNewerBetaVersion("0.1.0-beta.1", "0.1.0-beta.1"))
+    fun simpleBetaPatchVersionWins() {
+        assertTrue(isNewerBetaVersion("0.2.1-beta", "0.2.0-beta"))
     }
 
     @Test
-    fun newerBaseVersionWins() {
-        assertTrue(isNewerBetaVersion("0.2.0-beta.1", "0.1.9-beta.99"))
+    fun equalSimpleBetaIsNotAnUpdate() {
+        assertFalse(isNewerBetaVersion("0.2.0-beta", "0.2.0-beta"))
     }
 
     @Test
-    fun olderReleaseIsRejected() {
-        assertFalse(isNewerBetaVersion("0.1.0-beta.3", "0.1.1-beta.1"))
+    fun oldNumberedBetaCompatibilityStillWorks() {
+        assertTrue(isNewerBetaVersion("0.1.0-beta.3", "0.1.0-beta.2"))
+    }
+
+    @Test
+    fun olderBaseVersionIsRejectedEvenWithHigherBetaRevision() {
+        assertFalse(isNewerBetaVersion("0.1.9-beta.99", "0.2.0-beta"))
     }
 }

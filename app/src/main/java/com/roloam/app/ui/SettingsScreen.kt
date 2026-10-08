@@ -22,7 +22,15 @@ fun SettingsScreen(
     downloadUpdate: () -> Unit,
     installUpdate: () -> Unit
 ) = Page {
-    JourneyHeader(state.preferences.transport, false)
+    Row(
+        Modifier.fillMaxWidth(),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        RoloamWordmark()
+        Text("BETA", fontSize = 10.sp, color = RoloamMuted, letterSpacing = 1.4.sp)
+    }
+    Spacer(Modifier.height(14.dp))
 
     Text(
         "‹  Settings.",
@@ -89,11 +97,15 @@ fun SettingsScreen(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("Roloam.", fontWeight = FontWeight.Black)
+                Column {
+                    Text("Roloam.", fontWeight = FontWeight.Black)
+                    Text("Current version", fontSize = 10.sp, color = RoloamMuted)
+                }
                 Text(
                     BuildConfig.VERSION_NAME,
                     fontSize = 12.sp,
-                    color = RoloamMuted
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
                 )
             }
 
@@ -143,7 +155,10 @@ fun SettingsScreen(
                             onClick = installUpdate,
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = RoloamInk)
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            )
                         ) {
                             Text("INSTALL UPDATE →")
                         }
@@ -155,7 +170,10 @@ fun SettingsScreen(
                             enabled = progress == null,
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = RoloamInk)
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            )
                         ) {
                             Text("DOWNLOAD " + state.updateAvailable.version.uppercase() + " →")
                         }

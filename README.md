@@ -36,9 +36,9 @@ The beta signing key committed in this repository is deliberately a **throwaway 
 
 The beta version lives in `BETA_VERSION`. For every beta, bump `BETA_VERSION`, `versionCode`, and the beta version suffix in `app/build.gradle.kts` in normal reviewed commits.
 
-To publish, move the `release/beta` branch to the tested commit. The Beta Release workflow builds `assembleBeta`, creates the matching `v*-beta.*` tag and GitHub prerelease, and attaches the APK.
+To publish, move the `release/beta` branch to the tested commit. The Beta Release workflow builds `assembleBeta`, creates the matching `vX.Y.Z-beta` tag and GitHub prerelease, and attaches the APK.
 
-Manual version tags matching `v*-beta.*` are also supported.
+Manual version tags such as `v0.2.0-beta` are also supported. Older numbered beta tags remain compatible.
 
 Installed beta builds can then discover later prereleases from Settings.
 

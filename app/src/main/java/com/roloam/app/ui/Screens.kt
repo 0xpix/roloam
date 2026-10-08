@@ -109,15 +109,22 @@ private fun PrimaryButton(text:String, enabled:Boolean=true, onClick:()->Unit) {
     Button(
         onClick=onClick,
         enabled=enabled,
-        modifier=Modifier.fillMaxWidth().height(58.dp),
-        shape=RoundedCornerShape(18.dp),
+        modifier=Modifier.fillMaxWidth().height(62.dp),
+        shape=RoundedCornerShape(22.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = MaterialTheme.colorScheme.primary,
             contentColor = MaterialTheme.colorScheme.onPrimary,
             disabledContainerColor = RoloamMuted.copy(alpha = .22f),
             disabledContentColor = RoloamMuted
         )
-    ) { Text(text.uppercase() + "  →", fontWeight=FontWeight.Bold, letterSpacing=1.2.sp) }
+    ) {
+        Text(
+            text.uppercase() + "   →",
+            fontWeight = FontWeight.Bold,
+            fontSize = 13.sp,
+            letterSpacing = 1.8.sp
+        )
+    }
 }
 
 @Composable
@@ -172,7 +179,13 @@ fun HomeScreen(state: UiState, open:(Screen)->Unit, roll:()->Unit) = Page {
 
 @Composable
 private fun TinyChip(text:String, modifier:Modifier=Modifier, onClick:()->Unit) {
-    OutlinedButton(onClick=onClick, modifier=modifier.height(42.dp), shape=RoundedCornerShape(14.dp), contentPadding=PaddingValues(horizontal=10.dp)) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = modifier.height(48.dp),
+        shape = RoundedCornerShape(16.dp),
+        contentPadding = PaddingValues(horizontal = 10.dp),
+        border = BorderStroke(1.dp, RoloamMuted.copy(alpha = .55f))
+    ) {
         Text(text, fontSize=11.sp, maxLines=1, overflow=TextOverflow.Ellipsis)
     }
 }
@@ -180,7 +193,8 @@ private fun TinyChip(text:String, modifier:Modifier=Modifier, onClick:()->Unit) 
 @Composable
 fun PreferencesScreen(initial: TripPreferences, update:(TripPreferences)->Unit, back:()->Unit) = Page {
     var p by remember(initial) { mutableStateOf(initial) }
-    JourneyHeader(p.transport)
+    RoloamSectionBar("Preferences")
+    JourneyHeader(p.transport, false)
     Text("‹  Trip preferences.", fontSize=30.sp, fontWeight=FontWeight.Black, modifier=Modifier.clickable{back()})
     Text("Only the things that actually change the trip.", color=RoloamMuted)
     Spacer(Modifier.height(24.dp))
@@ -202,11 +216,15 @@ private fun Choice(label:String, values:List<String>, selected:Int, onSelect:(In
         values.forEachIndexed { i, value ->
             Surface(
                 modifier=Modifier.weight(1f).fillMaxHeight().clickable{onSelect(i)},
-                color=if(i==selected) RoloamInk else androidx.compose.ui.graphics.Color.Transparent,
+                color = if (i == selected) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Transparent,
                 shape=RoundedCornerShape(11.dp)
             ) {
                 Box(contentAlignment=Alignment.Center) {
-                    Text(value,fontSize=11.sp,color=if(i==selected) RoloamCream else MaterialTheme.colorScheme.onBackground)
+                    Text(
+                        value,
+                        fontSize = 11.sp,
+                        color = if (i == selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onBackground
+                    )
                 }
             }
         }
@@ -216,6 +234,7 @@ private fun Choice(label:String, values:List<String>, selected:Int, onSelect:(In
 @Composable
 fun RevealScreen(state: UiState, accept:()->Unit, reroll:()->Unit, back:()->Unit) = Page {
     val trip=state.trip ?: return@Page
+    RoloamSectionBar("Trip")
     JourneyHeader(state.preferences.transport)
     DateStamp()
     Spacer(Modifier.height(10.dp))
@@ -260,6 +279,7 @@ private fun CityGlyph(seed:String) {
 @Composable
 fun PlanScreen(state: UiState, open:(Screen)->Unit, select:(TripStop)->Unit, back:()->Unit) = Page {
     val trip=state.trip ?: return@Page
+    RoloamSectionBar("Plan")
     JourneyHeader(state.preferences.transport, false)
     Row(verticalAlignment=Alignment.CenterVertically) {
         Text("‹",fontSize=28.sp,modifier=Modifier.clickable{back()}.padding(end=10.dp))
@@ -428,6 +448,7 @@ private fun TimelineRow(
 @Composable
 fun StayScreen(state: UiState, back:()->Unit) = Page {
     val trip=state.trip ?: return@Page
+    RoloamSectionBar("Stay")
     JourneyHeader(state.preferences.transport,false)
     Text("‹",fontSize=28.sp,modifier=Modifier.clickable{back()})
     BigTitle("Tonight.")
@@ -467,6 +488,7 @@ private fun StayCard(stay: Stay,recommended:Boolean) {
 @Composable
 fun PlaceScreen(state: UiState, back:()->Unit) = Page {
     val stop=state.selectedStop ?: return@Page
+    RoloamSectionBar("Place")
     JourneyHeader(state.preferences.transport,false)
     Text("‹",fontSize=28.sp,modifier=Modifier.clickable{back()})
     BigTitle(stop.place.name + ".")
@@ -490,6 +512,7 @@ fun PlaceScreen(state: UiState, back:()->Unit) = Page {
 fun NowScreen(state: UiState, back:()->Unit) = Page {
     val trip=state.trip ?: return@Page
     val next=trip.allStops().firstOrNull()
+    RoloamSectionBar("Now")
     JourneyHeader(state.preferences.transport)
     Text("‹",fontSize=28.sp,modifier=Modifier.clickable{back()})
     BigTitle("Now.")
