@@ -155,12 +155,16 @@ fun HomeScreen(state: UiState, open:(Screen)->Unit, roll:()->Unit) = Page {
         Spacer(Modifier.height(26.dp))
     } else {
         val durationText = when(state.preferences.duration){DurationChoice.ONE->"1 day";DurationChoice.TWO->"2 days";DurationChoice.THREE->"3 days";DurationChoice.AUTO->"a few days"}
-        Text("Next free weekend detected.\nWeather decides the rhythm.\nYou could disappear for " + durationText + ".", lineHeight=24.sp)
+        Text(
+            "Next free weekend detected.\nWeather decides the rhythm.\nYou could disappear for " + durationText + ".",
+            lineHeight = 24.sp
+        )
+        Spacer(Modifier.height(8.dp))
         HomeTravelArt(
             mode = state.preferences.transport,
-            modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+            modifier = Modifier.fillMaxWidth()
         )
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(8.dp))
         state.error?.let {
             Text(it, color=MaterialTheme.colorScheme.error, modifier=Modifier.padding(bottom=12.dp))
         }
