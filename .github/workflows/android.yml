@@ -45,7 +45,7 @@ jobs:
       - name: Build beta APK
         run: >
           gradle :app:assembleBeta --no-daemon
-          -Pandroid.injected.version.name=${{ steps.beta_version.outputs.base }}
+          -Pandroid.injected.version.name=${{ steps.beta_version.outputs.full }}
           -Pandroid.injected.version.code=${{ steps.beta_version.outputs.code }}
 
       - name: Verify beta version
@@ -54,6 +54,7 @@ jobs:
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
           test -x "$AAPT"
           VERSION="$("$AAPT" dump badging app/build/outputs/apk/beta/app-beta.apk | sed -n "s/.*versionName='\([^']*\)'.*/\1/p" | head -1)"
+          echo "APK version: $VERSION"
           test "$VERSION" = "${{ steps.beta_version.outputs.full }}"
 
       - uses: actions/upload-artifact@v4
