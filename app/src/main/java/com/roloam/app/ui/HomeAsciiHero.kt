@@ -266,10 +266,11 @@ private fun DrawScope.drawMountainRange(
     spacing: Float,
     radius: Float
 ) {
+    val canvasWidth = size.width
     val full = buildList {
         add(Offset(0f, baseY))
         addAll(points)
-        add(Offset(size.width, baseY))
+        add(Offset(canvasWidth, baseY))
     }
 
     full.zipWithNext().forEach { (a, b) ->
