@@ -151,9 +151,13 @@ fun HomeTravelArt(
     mode: TransportMode,
     modifier: Modifier = Modifier
 ) {
-    // Keep the parameter because transport still controls JourneyHeader.
-    @Suppress("UNUSED_VARIABLE")
-    val selectedMode = mode
+    // Transport still controls JourneyHeader; the approved artwork itself stays fixed.
+    when (mode) {
+        TransportMode.CAR,
+        TransportMode.TRAIN,
+        TransportMode.BIKE,
+        TransportMode.WALK -> Unit
+    }
 
     Image(
         painter = painterResource(R.drawable.home_hero),
