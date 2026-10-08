@@ -218,17 +218,21 @@ class LiveDataSource(private val network: Network) {
         val daily = payload.daily ?: return emptyList()
         val hourly = payload.hourly
 
-        val hoursByDate = hourly?.time.orEmpty().indices.mapNotNull { i ->
-            val raw = hourly?.time?.getOrNull(i) ?: return@mapNotNull null
-            val date = raw.substringBefore("T")
-            date to WeatherHour(
-                time = raw.substringAfter("T", raw),
-                temperatureC = hourly.temperature.getOrNull(i),
-                precipitationProbability = hourly.precipitation.getOrNull(i),
-                windKph = hourly.wind.getOrNull(i),
-                code = hourly.weatherCode.getOrElse(i) { -1 }
-            )
-        }.groupBy({ it.first }, { it.second })
+        val hoursByDate = if (hourly == null) {
+            emptyMap()
+        } else {
+            hourly.time.indices.mapNotNull { i ->
+                val raw = hourly.time.getOrNull(i) ?: return@mapNotNull null
+                val date = raw.substringBefore("T")
+                date to WeatherHour(
+                    time = raw.substringAfter("T", raw),
+                    temperatureC = hourly.temperature.getOrNull(i),
+                    precipitationProbability = hourly.precipitation.getOrNull(i),
+                    windKph = hourly.wind.getOrNull(i),
+                    code = hourly.weatherCode.getOrElse(i) { -1 }
+                )
+            }.groupBy({ it.first }, { it.second })
+        }
 
         return daily.time.indices.mapNotNull { i ->
             runCatching {
