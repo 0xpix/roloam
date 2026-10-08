@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.1-beta
+
+### Home
+- Replaces the raw multiline ASCII-text hero with a custom dot-matrix Canvas renderer.
+- Draws mountains, pine trees, terrain, campsite detail, and the roaming trail directly so the scene scales cleanly on different phones.
+- Keeps dynamic morning, day, evening, and night states.
+- Daytime uses a dotted sun; night uses a dotted crescent moon and twinkling stars.
+- Removes the floating phase label and whole-scene terminal-text drift.
+- Keeps animation subtle: ambient opacity, star twinkle, and a tiny trail movement only.
+
 ## 0.4.0-beta
 
 ### Dynamic home
