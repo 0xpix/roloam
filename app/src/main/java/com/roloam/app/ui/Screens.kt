@@ -193,7 +193,8 @@ private fun TinyChip(text:String, modifier:Modifier=Modifier, onClick:()->Unit) 
 @Composable
 fun PreferencesScreen(initial: TripPreferences, update:(TripPreferences)->Unit, back:()->Unit) = Page {
     var p by remember(initial) { mutableStateOf(initial) }
-    JourneyHeader(p.transport)
+    RoloamSectionBar("Preferences")
+    JourneyHeader(p.transport, false)
     Text("‹  Trip preferences.", fontSize=30.sp, fontWeight=FontWeight.Black, modifier=Modifier.clickable{back()})
     Text("Only the things that actually change the trip.", color=RoloamMuted)
     Spacer(Modifier.height(24.dp))
@@ -229,6 +230,7 @@ private fun Choice(label:String, values:List<String>, selected:Int, onSelect:(In
 @Composable
 fun RevealScreen(state: UiState, accept:()->Unit, reroll:()->Unit, back:()->Unit) = Page {
     val trip=state.trip ?: return@Page
+    RoloamSectionBar("Trip")
     JourneyHeader(state.preferences.transport)
     DateStamp()
     Spacer(Modifier.height(10.dp))
@@ -273,6 +275,7 @@ private fun CityGlyph(seed:String) {
 @Composable
 fun PlanScreen(state: UiState, open:(Screen)->Unit, select:(TripStop)->Unit, back:()->Unit) = Page {
     val trip=state.trip ?: return@Page
+    RoloamSectionBar("Plan")
     JourneyHeader(state.preferences.transport, false)
     Row(verticalAlignment=Alignment.CenterVertically) {
         Text("‹",fontSize=28.sp,modifier=Modifier.clickable{back()}.padding(end=10.dp))
@@ -441,6 +444,7 @@ private fun TimelineRow(
 @Composable
 fun StayScreen(state: UiState, back:()->Unit) = Page {
     val trip=state.trip ?: return@Page
+    RoloamSectionBar("Stay")
     JourneyHeader(state.preferences.transport,false)
     Text("‹",fontSize=28.sp,modifier=Modifier.clickable{back()})
     BigTitle("Tonight.")
@@ -480,6 +484,7 @@ private fun StayCard(stay: Stay,recommended:Boolean) {
 @Composable
 fun PlaceScreen(state: UiState, back:()->Unit) = Page {
     val stop=state.selectedStop ?: return@Page
+    RoloamSectionBar("Place")
     JourneyHeader(state.preferences.transport,false)
     Text("‹",fontSize=28.sp,modifier=Modifier.clickable{back()})
     BigTitle(stop.place.name + ".")
@@ -503,6 +508,7 @@ fun PlaceScreen(state: UiState, back:()->Unit) = Page {
 fun NowScreen(state: UiState, back:()->Unit) = Page {
     val trip=state.trip ?: return@Page
     val next=trip.allStops().firstOrNull()
+    RoloamSectionBar("Now")
     JourneyHeader(state.preferences.transport)
     Text("‹",fontSize=28.sp,modifier=Modifier.clickable{back()})
     BigTitle("Now.")
