@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.roloam.app.model.TransportMode
 
 @Composable
@@ -133,8 +134,8 @@ fun RoloamSectionBar(
         androidx.compose.material3.Text(
             label.uppercase(),
             color = RoloamMuted,
-            fontSize = 10.dp.value.sp,
-            letterSpacing = 1.4.dp.value.sp
+            fontSize = 10.sp,
+            letterSpacing = 1.4.sp
         )
     }
 }
