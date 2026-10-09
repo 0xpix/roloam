@@ -195,8 +195,9 @@ class TripRepository(context: Context) {
             q -= haversine(center, p.point) / 18.0
             return q
         }
-        return input.filter { haversine(center, it.point) < 16.0 }
-            .sortedByDescending(::quality)
+        val close = input.filter { haversine(center, it.point) < 16.0 }
+        val usable = if (close.size >= 3) close else input.filter { haversine(center, it.point) < 40.0 }
+        return usable.sortedByDescending(::quality)
             .distinctBy { it.name.lowercase() }
             .take(16)
     }
