@@ -1,21 +1,25 @@
 package com.roloam.app.ui
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.roloam.app.UiState
+import com.roloam.app.data.MapsLinks
 import com.roloam.app.model.allStops
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint as OsmPoint
@@ -24,15 +28,44 @@ import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
 
 private enum class MapMode(val label: String) {
-    TODAY("Today"),
+    TODAY("Day 1"),
     STAY("Stay"),
     FULL("Full trip")
 }
 
 @Composable
-fun MapScreen(state: UiState, back:()->Unit) = Page {
+fun MapScreen(state: UiState, back: () -> Unit) = Page {
     val trip = state.trip ?: return@Page
-    var mode by remember { mutableStateOf(MapMode.TODAY) }
+    var mode by remember(trip) { mutableStateOf(MapMode.TODAY) }
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val mapView = remember(context) {
+        MapView(context).apply {
+            setTileSource(TileSourceFactory.MAPNIK)
+            setMultiTouchControls(true)
+            setUseDataConnection(true)
+            minZoomLevel = 3.0
+            controller.setZoom(11.0)
+        }
+    }
+
+    // osmdroid owns a tile downloader and cache: pause and detach when leaving the screen.
+    DisposableEffect(mapView, lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> mapView.onResume()
+                Lifecycle.Event.ON_PAUSE -> mapView.onPause()
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) mapView.onResume()
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            mapView.onPause()
+            mapView.onDetach()
+        }
+    }
 
     Row(
         Modifier.fillMaxWidth(),
@@ -40,135 +73,122 @@ fun MapScreen(state: UiState, back:()->Unit) = Page {
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         RoloamWordmark()
-        Text("ROUTE", fontSize = 10.sp, color = RoloamMuted, letterSpacing = 1.4.sp)
+        Text("MAP", fontSize = 10.sp, color = RoloamMuted, letterSpacing = 1.4.sp)
     }
-
     Spacer(Modifier.height(10.dp))
-    Text("‹", fontSize=28.sp, modifier=Modifier.clickable{back()})
+    Text("‹", fontSize = 28.sp, modifier = Modifier.clickable { back() })
     BigTitle("Route.")
-    Text(
-        "From ${trip.originLabel} to ${trip.destination.name}.",
-        color = RoloamMuted
-    )
+    Text("From " + trip.originLabel + " to " + trip.destination.name, color = RoloamMuted)
     Spacer(Modifier.height(12.dp))
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         MapMode.entries.forEach { option ->
             val selected = mode == option
             Surface(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(38.dp)
-                    .clickable { mode = option },
+                modifier = Modifier.weight(1f).height(38.dp).clickable { mode = option },
                 shape = RoundedCornerShape(13.dp),
                 color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.background,
                 contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onBackground,
-                border = if (selected) null else BorderStroke(1.dp, RoloamMuted.copy(alpha=.30f))
+                border = if (selected) null else BorderStroke(1.dp, RoloamMuted.copy(alpha = .30f))
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        option.label,
-                        fontSize = 11.sp,
-                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
-                    )
+                    Text(option.label, fontSize = 11.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
                 }
             }
         }
     }
-
     Spacer(Modifier.height(10.dp))
 
-    val context = LocalContext.current
-    val allStops = remember(trip) { trip.allStops() }
-
     val pointData = remember(trip, mode) {
-        when (mode) {
-            MapMode.TODAY -> {
-                val firstDay = trip.itinerary.firstOrNull()?.stops.orEmpty()
-                buildList {
+        buildList {
+            when (mode) {
+                MapMode.TODAY -> {
                     add(trip.origin to trip.originLabel)
-                    firstDay.forEachIndexed { index, stop ->
-                        add(stop.place.point to "${index + 1}. ${stop.place.name}")
+                    add(trip.destination.point to trip.destination.name)
+                    trip.itinerary.firstOrNull()?.stops.orEmpty().forEachIndexed { index, stop ->
+                        add(stop.place.point to ((index + 1).toString() + ". " + stop.place.name))
                     }
                 }
-            }
-            MapMode.STAY -> {
-                buildList {
-                    trip.stay?.let { stay ->
-                        val previous = trip.itinerary.firstOrNull()?.stops?.lastOrNull()
-                        previous?.let { add(it.place.point to it.place.name) }
-                        add(stay.point to stay.name)
-                        val next = trip.itinerary.getOrNull(1)?.stops?.firstOrNull()
-                        next?.let { add(it.place.point to it.place.name) }
+                MapMode.STAY -> {
+                    trip.itinerary.firstOrNull()?.stops?.lastOrNull()?.let {
+                        add(it.place.point to it.place.name)
+                    }
+                    trip.stay?.let { add(it.point to ("Stay · " + it.name)) }
+                    trip.itinerary.getOrNull(1)?.stops?.firstOrNull()?.let {
+                        add(it.place.point to it.place.name)
                     }
                     if (isEmpty()) add(trip.destination.point to trip.destination.name)
                 }
-            }
-            MapMode.FULL -> {
-                buildList {
+                MapMode.FULL -> {
                     add(trip.origin to trip.originLabel)
-                    allStops.forEachIndexed { index, stop ->
-                        add(stop.place.point to "${index + 1}. ${stop.place.name}")
+                    add(trip.destination.point to trip.destination.name)
+                    trip.itinerary.forEachIndexed { dayIndex, day ->
+                        day.stops.forEachIndexed { index, stop ->
+                            add(stop.place.point to ("D" + (dayIndex + 1) + "·" + (index + 1) + " " + stop.place.name))
+                        }
+                        if (dayIndex < trip.days - 1) trip.stay?.let {
+                            add(it.point to ("Stay · " + it.name))
+                        }
                     }
-                    trip.stay?.let { add(it.point to "Stay · ${it.name}") }
                 }
             }
         }
     }
-
+    val cameraKey = trip.generatedAtEpochMs.toString() + ":" + mode.name
     AndroidView(
-        modifier = Modifier
-            .fillMaxWidth()
-            .weight(1f),
-        factory = {
-            MapView(context).apply {
-                setTileSource(TileSourceFactory.MAPNIK)
-                setMultiTouchControls(true)
-                minZoomLevel = 3.0
-            }
-        },
+        modifier = Modifier.fillMaxWidth().weight(1f),
+        factory = { mapView },
         update = { map ->
-            map.overlays.clear()
-
-            val osm = pointData.map { (point, _) -> OsmPoint(point.lat, point.lon) }
-            if (osm.size > 1) {
-                val line = Polyline().apply {
-                    setPoints(osm)
-                    outlinePaint.color = android.graphics.Color.rgb(44, 41, 31)
-                    outlinePaint.strokeWidth = 5f
+            // Rebuild only for a different trip/mode, not on every Compose recomposition.
+            // Otherwise any attempt to pan or zoom immediately snaps back.
+            if (map.tag != cameraKey) {
+                map.tag = cameraKey
+                map.overlays.clear()
+                val points = pointData.map { (point, _) -> OsmPoint(point.lat, point.lon) }
+                if (points.size > 1) {
+                    map.overlays.add(Polyline().apply {
+                        setPoints(points)
+                        outlinePaint.color = android.graphics.Color.rgb(80, 110, 91)
+                        outlinePaint.strokeWidth = 5f
+                    })
                 }
-                map.overlays.add(line)
-            }
-
-            pointData.forEach { (point, label) ->
-                val marker = Marker(map).apply {
-                    position = OsmPoint(point.lat, point.lon)
-                    title = label
-                    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                pointData.forEach { (point, label) ->
+                    map.overlays.add(Marker(map).apply {
+                        position = OsmPoint(point.lat, point.lon)
+                        title = label
+                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                    })
                 }
-                map.overlays.add(marker)
-            }
-
-            if (osm.isNotEmpty()) {
-                if (osm.size == 1) {
-                    map.controller.setCenter(osm.first())
-                    map.controller.setZoom(13.0)
-                } else {
-                    val box = org.osmdroid.util.BoundingBox.fromGeoPoints(osm)
-                    map.zoomToBoundingBox(box, true, 72)
+                map.post {
+                    if (map.tag == cameraKey) {
+                        if (points.size == 1) {
+                            map.controller.setZoom(13.0)
+                            map.controller.setCenter(points.first())
+                        } else if (points.isNotEmpty()) {
+                            map.zoomToBoundingBox(org.osmdroid.util.BoundingBox.fromGeoPoints(points), true, 72)
+                        }
+                        map.invalidate()
+                    }
                 }
             }
-            map.invalidate()
         }
     )
 
+    Spacer(Modifier.height(10.dp))
+    Button(
+        onClick = {
+            val url = MapsLinks.directions(trip.origin, trip.destination.point, state.preferences.transport)
+            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+        },
+        modifier = Modifier.fillMaxWidth().height(48.dp),
+        shape = RoundedCornerShape(14.dp)
+    ) {
+        Text("OPEN GOOGLE MAPS DIRECTIONS →")
+    }
     Text(
-        "OpenStreetMap · route order, not turn-by-turn navigation.",
+        "OpenStreetMap points show stop order, not road geometry. Use directions for actual navigation.",
         fontSize = 10.sp,
         color = RoloamMuted,
-        modifier = Modifier.padding(top=8.dp)
+        modifier = Modifier.padding(top = 7.dp, bottom = 3.dp)
     )
 }

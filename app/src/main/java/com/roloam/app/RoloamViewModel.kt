@@ -73,9 +73,11 @@ class RoloamViewModel(app: Application) : AndroidViewModel(app) {
 
     fun roll() {
         if (_state.value.rolling) return
+        val origin = _state.value.origin
+        val preferences = _state.value.preferences
         viewModelScope.launch {
             _state.value = _state.value.copy(rolling = true, error = null)
-            runCatching { trips.roll(_state.value.origin, _state.value.preferences) }
+            runCatching { trips.roll(origin, preferences) }
                 .onSuccess { plan ->
                     _state.value = _state.value.copy(rolling = false, trip = plan, screen = Screen.REVEAL)
                 }

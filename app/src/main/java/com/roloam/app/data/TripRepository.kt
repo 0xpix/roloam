@@ -32,7 +32,7 @@ class TripRepository(context: Context) {
             if (it.isNotEmpty()) cityCache = CachedCities(origin.point, radius, it)
         }
         val localFallback = if (haversine(origin.point, GeoPoint(49.3988, 8.6724)) <= 130.0) {
-            fallbackCities().filter { haversine(origin.point, it.point) <= radius }
+            fallbackCities().filter { haversine(origin.point, it.point) <= radius.toDouble() }
         } else emptyList()
         val rawCities = if (liveCities.size >= 4) liveCities else
             (liveCities + localFallback).distinctBy { it.name.lowercase() }
