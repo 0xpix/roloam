@@ -31,14 +31,18 @@ class TripRepository(context: Context) {
         val liveCities = cached ?: runCatching { source.cities(origin.point, radius) }.getOrDefault(emptyList()).also {
             if (it.isNotEmpty()) cityCache = CachedCities(origin.point, radius, it)
         }
-        val rawCities = if (liveCities.size >= 4) liveCities else fallbackCities()
+        val localFallback = if (haversine(origin.point, GeoPoint(49.3988, 8.6724)) <= 130.0) {
+            fallbackCities().filter { haversine(origin.point, it.point) <= radius }
+        } else emptyList()
+        val rawCities = if (liveCities.size >= 4) liveCities else
+            (liveCities + localFallback).distinctBy { it.name.lowercase() }
 
         val prelim = rawCities
             .filter { haversine(origin.point, it.point) > minimumDistance(prefs.transport) }
             .sortedBy { abs(haversine(origin.point, it.point) - targetDistance(days, prefs.transport)) }
-            .take(22)
+            .take(50)
 
-        if (prelim.isEmpty()) error("No destinations found nearby. Try a longer trip.")
+        if (prelim.isEmpty()) error("No nearby destinations found. Check your connection or increase trip duration.")
 
         val routeMetrics = if (prefs.transport == TransportMode.TRAIN) {
             prelim.map {
@@ -77,19 +81,30 @@ class TripRepository(context: Context) {
         val pool = (if (candidates.isNotEmpty()) candidates else prelim.map {
             val km = haversine(origin.point, it.point)
             Destination(it.name, it.country, it.point, it.population, ((km / 75) * 60).roundToInt(), km)
-        }).sortedByDescending { score(it, days, prefs) }.take(7)
+        }).sortedByDescending { score(it, days, prefs) }.take(20)
 
+        // Never return the previous destination while another viable option exists.
         val freshPool = pool.filterNot { recentDestinations.contains(it.name.lowercase()) }
-        val chosen = weightedPick(if (freshPool.size >= 2) freshPool else pool)
+        val chosen = weightedPick(freshPool.ifEmpty { pool })
         recentDestinations.addFirst(chosen.name.lowercase())
-        while (recentDestinations.size > 4) recentDestinations.removeLast()
+        while (recentDestinations.size > 12) recentDestinations.removeLast()
 
         val startDate = nextSaturday(LocalDate.now())
 
-        val placesDeferred = async { runCatching { source.attractions(chosen.point, prefs.style.name) }.getOrDefault(emptyList()) }
+        val placesDeferred = async {
+            val nearby = runCatching { source.attractions(chosen.point, prefs.style.name) }.getOrDefault(emptyList())
+            if (nearby.size >= 3) nearby else
+                (nearby + runCatching { source.attractions(chosen.point, prefs.style.name, 40) }.getOrDefault(emptyList()))
+                    .distinctBy { it.name.lowercase() }
+        }
         val staysDeferred = async {
             if (days == 1) emptyList()
-            else runCatching { source.stays(chosen.point) }.getOrDefault(emptyList())
+            else {
+                val nearby = runCatching { source.stays(chosen.point) }.getOrDefault(emptyList())
+                if (nearby.size >= 4) nearby else
+                    (nearby + runCatching { source.stays(chosen.point, 70) }.getOrDefault(emptyList()))
+                        .distinctBy { it.name.lowercase() }
+            }
         }
         val weatherDeferred = async { runCatching { source.weather(chosen.point) }.getOrDefault(emptyList()) }
 
