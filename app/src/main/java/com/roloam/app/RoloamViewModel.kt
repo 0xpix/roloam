@@ -55,9 +55,11 @@ class RoloamViewModel(app: Application) : AndroidViewModel(app) {
     fun back() {
         val target = when (_state.value.screen) {
             Screen.HOME -> Screen.HOME
-            Screen.PREFERENCES, Screen.SETTINGS -> Screen.HOME
+            Screen.PREFERENCES -> Screen.SETTINGS
+            Screen.SETTINGS -> Screen.HOME
             Screen.REVEAL -> Screen.HOME
-            Screen.PLAN, Screen.MAP, Screen.STAY, Screen.PLACE, Screen.NOW, Screen.WEATHER, Screen.PACKING -> Screen.PLAN
+            Screen.PLAN -> Screen.REVEAL
+            Screen.MAP, Screen.STAY, Screen.PLACE, Screen.NOW, Screen.WEATHER, Screen.PACKING -> Screen.PLAN
         }
         _state.value = _state.value.copy(screen = target, selectedStop = null)
     }
