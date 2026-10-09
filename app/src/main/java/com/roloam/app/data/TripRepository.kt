@@ -31,14 +31,18 @@ class TripRepository(context: Context) {
         val liveCities = cached ?: runCatching { source.cities(origin.point, radius) }.getOrDefault(emptyList()).also {
             if (it.isNotEmpty()) cityCache = CachedCities(origin.point, radius, it)
         }
-        val rawCities = if (liveCities.size >= 4) liveCities else fallbackCities()
+        val localFallback = if (haversine(origin.point, GeoPoint(49.3988, 8.6724)) <= 130.0) {
+            fallbackCities().filter { haversine(origin.point, it.point) <= radius.toDouble() }
+        } else emptyList()
+        val rawCities = if (liveCities.size >= 4) liveCities else
+            (liveCities + localFallback).distinctBy { it.name.lowercase() }
 
         val prelim = rawCities
             .filter { haversine(origin.point, it.point) > minimumDistance(prefs.transport) }
             .sortedBy { abs(haversine(origin.point, it.point) - targetDistance(days, prefs.transport)) }
-            .take(22)
+            .take(50)
 
-        if (prelim.isEmpty()) error("No destinations found nearby. Try a longer trip.")
+        if (prelim.isEmpty()) error("No nearby destinations found. Check your connection or increase trip duration.")
 
         val routeMetrics = if (prefs.transport == TransportMode.TRAIN) {
             prelim.map {
@@ -69,27 +73,39 @@ class TripRepository(context: Context) {
                 city.country,
                 city.point,
                 city.population,
-                metric?.minutes ?: ((fallbackKm / speed) * 60).roundToInt(),
-                if ((metric?.distanceKm ?: 0.0) > 0) metric!!.distanceKm else fallbackKm
+                metric?.minutes ?: ((fallbackKm * 1.25 / speed) * 60).roundToInt(),
+                if ((metric?.distanceKm ?: 0.0) > 0) metric!!.distanceKm else fallbackKm * 1.25,
+                routeEstimated = metric == null || prefs.transport == TransportMode.TRAIN
             )
         }.filter { validTravel(it.travelMinutes, days, prefs.transport) }
 
-        val pool = (if (candidates.isNotEmpty()) candidates else prelim.map {
-            val km = haversine(origin.point, it.point)
-            Destination(it.name, it.country, it.point, it.population, ((km / 75) * 60).roundToInt(), km)
-        }).sortedByDescending { score(it, days, prefs) }.take(7)
+        val pool = candidates.sortedByDescending { score(it, days, prefs) }.take(20)
+        if (pool.isEmpty()) {
+            error("No destinations match the travel-time range. Try another duration or transport mode.")
+        }
 
+        // Never return the previous destination while another viable option exists.
         val freshPool = pool.filterNot { recentDestinations.contains(it.name.lowercase()) }
-        val chosen = weightedPick(if (freshPool.size >= 2) freshPool else pool)
+        val chosen = weightedPick(freshPool.ifEmpty { pool })
         recentDestinations.addFirst(chosen.name.lowercase())
-        while (recentDestinations.size > 4) recentDestinations.removeLast()
+        while (recentDestinations.size > 12) recentDestinations.removeLast()
 
         val startDate = nextSaturday(LocalDate.now())
 
-        val placesDeferred = async { runCatching { source.attractions(chosen.point, prefs.style.name) }.getOrDefault(emptyList()) }
+        val placesDeferred = async {
+            val nearby = runCatching { source.attractions(chosen.point, prefs.style.name) }.getOrDefault(emptyList())
+            if (nearby.size >= 3) nearby else
+                (nearby + runCatching { source.attractions(chosen.point, prefs.style.name, 40) }.getOrDefault(emptyList()))
+                    .distinctBy { it.name.lowercase() }
+        }
         val staysDeferred = async {
             if (days == 1) emptyList()
-            else runCatching { source.stays(chosen.point) }.getOrDefault(emptyList())
+            else {
+                val nearby = runCatching { source.stays(chosen.point) }.getOrDefault(emptyList())
+                if (nearby.size >= 4) nearby else
+                    (nearby + runCatching { source.stays(chosen.point, 70) }.getOrDefault(emptyList()))
+                        .distinctBy { it.name.lowercase() }
+            }
         }
         val weatherDeferred = async { runCatching { source.weather(chosen.point) }.getOrDefault(emptyList()) }
 
@@ -179,8 +195,9 @@ class TripRepository(context: Context) {
             q -= haversine(center, p.point) / 18.0
             return q
         }
-        return input.filter { haversine(center, it.point) < 16.0 }
-            .sortedByDescending(::quality)
+        val close = input.filter { haversine(center, it.point) < 16.0 }
+        val usable = if (close.size >= 3) close else input.filter { haversine(center, it.point) < 40.0 }
+        return usable.sortedByDescending(::quality)
             .distinctBy { it.name.lowercase() }
             .take(16)
     }

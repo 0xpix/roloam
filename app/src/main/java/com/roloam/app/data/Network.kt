@@ -107,25 +107,46 @@ class LiveDataSource(private val network: Network) {
     private val tableAdapter = network.moshi.adapter(OsrmTable::class.java)
     private val weatherAdapter = network.moshi.adapter(OpenMeteo::class.java)
 
+    // Public Overpass endpoints are best-effort services; try an independent mirror
+    // instead of turning a temporary 429/502 into a trip with no places or stays.
+    private suspend fun overpass(query: String): OverpassResponse {
+        var lastError: Throwable? = null
+        for (endpoint in listOf(
+            "https://overpass-api.de/api/interpreter",
+            "https://overpass.private.coffee/api/interpreter"
+        )) {
+            try {
+                val response = overpassAdapter.fromJson(network.postForm(endpoint, "data", query))
+                if (response != null) return response
+            } catch (error: Exception) {
+                lastError = error
+            }
+        }
+        throw lastError ?: IllegalStateException("Map place provider unavailable")
+    }
+
     suspend fun cities(origin: GeoPoint, radiusKm: Int): List<CityRaw> {
         val meters = radiusKm.coerceAtMost(650) * 1000
+        val smallerPlaces = if (radiusKm <= 90) {
+            """nwr["place"~"village|hamlet"]["name"](around:$meters,${origin.lat},${origin.lon});"""
+        } else ""
         val q = """
-            [out:json][timeout:12];
+            [out:json][timeout:16];
             (
-              nwr["place"="city"](around:$meters,${origin.lat},${origin.lon});
-              nwr["place"="town"]["population"](around:$meters,${origin.lat},${origin.lon});
+              nwr["place"~"city|town"]["name"](around:$meters,${origin.lat},${origin.lon});
+              $smallerPlaces
             );
-            out center tags 180;
+            out center tags 240;
         """.trimIndent()
-        val json = network.postForm("https://overpass-api.de/api/interpreter", "data", q)
-        return overpassAdapter.fromJson(json)?.elements.orEmpty().mapNotNull { e ->
+        return overpass(q).elements.mapNotNull { e ->
             val p = e.point() ?: return@mapNotNull null
             val tags = e.tags ?: return@mapNotNull null
             val name = tags["name"] ?: return@mapNotNull null
             val population = tags["population"]?.filter(Char::isDigit)?.toLongOrNull()
             val country = tags["addr:country"] ?: tags["is_in:country"]
             CityRaw(name, country, p, population)
-        }.distinctBy { it.name.lowercase() }
+        }.filter { haversine(origin, it.point) <= radiusKm.toDouble() }
+            .distinctBy { it.name.lowercase() + ":" + (it.point.lat * 100).toInt() + ":" + (it.point.lon * 100).toInt() }
     }
 
     suspend fun routeTable(origin: GeoPoint, points: List<GeoPoint>, mode: String): List<RouteMetric?> {
@@ -147,20 +168,18 @@ class LiveDataSource(private val network: Network) {
         }
     }
 
-    suspend fun attractions(center: GeoPoint, style: String): List<Place> {
+    suspend fun attractions(center: GeoPoint, style: String, radiusKm: Int = 18): List<Place> {
+        val meters = radiusKm.coerceIn(5, 45) * 1000
         val q = """
             [out:json][timeout:12];
             (
-              nwr["tourism"~"attraction|museum|gallery|viewpoint"](around:15000,${center.lat},${center.lon});
-              nwr["historic"]["name"](around:15000,${center.lat},${center.lon});
-              nwr["leisure"~"park|garden"]["name"](around:15000,${center.lat},${center.lon});
+              nwr["tourism"~"attraction|museum|gallery|viewpoint"](around:$meters,${center.lat},${center.lon});
+              nwr["historic"]["name"](around:$meters,${center.lat},${center.lon});
+              nwr["leisure"~"park|garden"]["name"](around:$meters,${center.lat},${center.lon});
             );
             out center tags 120;
         """.trimIndent()
-        val response = overpassAdapter.fromJson(
-            network.postForm("https://overpass-api.de/api/interpreter", "data", q)
-        )
-        return response?.elements.orEmpty().mapNotNull { e ->
+        return overpass(q).elements.mapNotNull { e ->
             val p = e.point() ?: return@mapNotNull null
             val tags = e.tags ?: return@mapNotNull null
             val name = tags["name"] ?: return@mapNotNull null
@@ -178,18 +197,16 @@ class LiveDataSource(private val network: Network) {
         }.distinctBy { it.name.lowercase() }
     }
 
-    suspend fun stays(center: GeoPoint): List<Stay> {
+    suspend fun stays(center: GeoPoint, radiusKm: Int = 35): List<Stay> {
+        val meters = radiusKm.coerceIn(10, 80) * 1000
         val q = """
-            [out:json][timeout:12];
+            [out:json][timeout:18];
             (
-              nwr["tourism"~"camp_site|caravan_site|hostel|hotel|guest_house"](around:25000,${center.lat},${center.lon});
+              nwr["tourism"~"^(camp_site|caravan_site|hostel|hotel|guest_house|motel|chalet|alpine_hut|apartment|wilderness_hut)$"]["name"](around:$meters,${center.lat},${center.lon});
             );
-            out center tags 90;
+            out center tags 220;
         """.trimIndent()
-        val response = overpassAdapter.fromJson(
-            network.postForm("https://overpass-api.de/api/interpreter", "data", q)
-        )
-        return response?.elements.orEmpty().mapNotNull { e ->
+        return overpass(q).elements.mapNotNull { e ->
             val p = e.point() ?: return@mapNotNull null
             val tags = e.tags ?: return@mapNotNull null
             val name = tags["name"] ?: return@mapNotNull null
@@ -198,7 +215,7 @@ class LiveDataSource(private val network: Network) {
                 name = name,
                 point = p,
                 category = tags["tourism"] ?: "stay",
-                website = tags["website"] ?: tags["contact:website"],
+                website = tags["website"] ?: tags["contact:website"] ?: tags["url"],
                 phone = tags["phone"] ?: tags["contact:phone"],
                 openingHours = tags["opening_hours"],
                 distanceFromCenterKm = haversine(center, p)

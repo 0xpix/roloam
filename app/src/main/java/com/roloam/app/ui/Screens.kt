@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.roloam.app.Screen
 import com.roloam.app.UiState
+import com.roloam.app.data.MapsLinks
 import com.roloam.app.model.*
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -79,10 +80,22 @@ fun JourneyHeader(mode: TransportMode, active: Boolean = true) {
                 drawLine(bg, Offset(x-4.dp.toPx(),yy-4.dp.toPx()),Offset(x+4.dp.toPx(),yy-4.dp.toPx()),2.dp.toPx())
             }
             TransportMode.BIKE -> {
-                drawCircle(RoloamInk, 5.dp.toPx(), Offset(x-7.dp.toPx(),yy+4.dp.toPx()), style=Stroke(1.8.dp.toPx()))
-                drawCircle(RoloamInk, 5.dp.toPx(), Offset(x+7.dp.toPx(),yy+4.dp.toPx()), style=Stroke(1.8.dp.toPx()))
-                drawLine(RoloamInk, Offset(x-7.dp.toPx(),yy+4.dp.toPx()),Offset(x,yy-4.dp.toPx()),1.8.dp.toPx())
-                drawLine(RoloamInk, Offset(x,yy-4.dp.toPx()),Offset(x+7.dp.toPx(),yy+4.dp.toPx()),1.8.dp.toPx())
+                val rear = Offset(x - 14.dp.toPx(), yy + 7.dp.toPx())
+                val front = Offset(x + 14.dp.toPx(), yy + 7.dp.toPx())
+                val crank = Offset(x, yy + 7.dp.toPx())
+                val saddle = Offset(x - 6.dp.toPx(), yy - 4.dp.toPx())
+                val stem = Offset(x + 7.dp.toPx(), yy - 5.dp.toPx())
+                val stroke = 1.7.dp.toPx()
+                drawCircle(RoloamInk, 6.5.dp.toPx(), rear, style = Stroke(stroke))
+                drawCircle(RoloamInk, 6.5.dp.toPx(), front, style = Stroke(stroke))
+                drawLine(RoloamInk, rear, saddle, stroke, cap = StrokeCap.Round)
+                drawLine(RoloamInk, rear, crank, stroke, cap = StrokeCap.Round)
+                drawLine(RoloamInk, saddle, crank, stroke, cap = StrokeCap.Round)
+                drawLine(RoloamInk, saddle, stem, stroke, cap = StrokeCap.Round)
+                drawLine(RoloamInk, stem, crank, stroke, cap = StrokeCap.Round)
+                drawLine(RoloamInk, stem, front, stroke, cap = StrokeCap.Round)
+                drawLine(RoloamInk, Offset(saddle.x - 3.dp.toPx(), saddle.y), Offset(saddle.x + 2.dp.toPx(), saddle.y), stroke, cap = StrokeCap.Round)
+                drawLine(RoloamInk, Offset(stem.x - 2.dp.toPx(), stem.y - 2.dp.toPx()), Offset(stem.x + 3.dp.toPx(), stem.y - 2.dp.toPx()), stroke, cap = StrokeCap.Round)
             }
             TransportMode.WALK -> {
                 drawCircle(RoloamInk, 3.dp.toPx(), Offset(x,yy-8.dp.toPx()))
@@ -268,16 +281,28 @@ fun RevealScreen(state: UiState, accept:()->Unit, reroll:()->Unit, back:()->Unit
     Spacer(Modifier.height(12.dp))
     val h=trip.destination.travelMinutes/60
     val m=trip.destination.travelMinutes%60
-    val travelPrefix = if (state.preferences.transport == TransportMode.TRAIN) "≈ " else ""
+    val travelPrefix = if (trip.destination.routeEstimated) "≈ " else ""
     val stayText = if (trip.days == 1) "day trip" else (trip.stay?.let{if(it.category.contains("camp")) "camping found" else "stay found"} ?: "check stay")
     Text(travelPrefix + (if(h>0) h.toString()+"h " else "") + m + "m  ·  " + trip.destination.distanceKm.roundToInt() + " km  ·  " + stayText)
     Spacer(Modifier.weight(1f))
     CityGlyph(trip.destination.name)
     Spacer(Modifier.weight(1f))
     if(!trip.usedLiveData) Text("Live place data was limited; route generation used the offline destination fallback.", fontSize=11.sp, color=RoloamMuted, modifier=Modifier.padding(bottom=12.dp))
-    PrimaryButton("Accept this trip", onClick=accept)
+    if (state.rolling) {
+        Text("Searching for a different destination…", fontSize = 12.sp, color = RoloamMuted)
+        Spacer(Modifier.height(8.dp))
+        LinearProgressIndicator(Modifier.fillMaxWidth(), color = RoloamAccent)
+        Spacer(Modifier.height(12.dp))
+    }
+    state.error?.let {
+        Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(bottom = 10.dp))
+    }
+    PrimaryButton("Accept this trip", enabled = !state.rolling, onClick=accept)
     Spacer(Modifier.height(10.dp))
-    OutlinedButton(onClick=reroll, modifier=Modifier.fillMaxWidth().height(52.dp), shape=RoundedCornerShape(18.dp)) { Text("REROLL  ↻") }
+    OutlinedButton(
+        onClick=reroll, enabled = !state.rolling,
+        modifier=Modifier.fillMaxWidth().height(52.dp), shape=RoundedCornerShape(18.dp)
+    ) { Text(if (state.rolling) "FINDING ANOTHER TRIP…" else "REROLL  ↻") }
     Text("‹ back", Modifier.padding(top=14.dp).clickable{back()}, color=RoloamMuted)
 }
 
@@ -335,7 +360,7 @@ fun PlanScreen(state: UiState, open:(Screen)->Unit, select:(TripStop)->Unit, bac
 
             val rows = buildList {
                 if (dayIndex == 0) {
-                    val t = (if (state.preferences.transport == TransportMode.TRAIN) "estimated · " else "") +
+                    val t = (if (trip.destination.routeEstimated) "estimated · " else "") +
                         travelText(trip.destination.travelMinutes)
                     add(TimelineUi("08:00", "Depart " + trip.originLabel, t, TimelineKind.TRAVEL, null))
                 }
@@ -476,39 +501,87 @@ private fun TimelineRow(
 
 @Composable
 fun StayScreen(state: UiState, back:()->Unit) = Page {
-    val trip=state.trip ?: return@Page
+    val trip = state.trip ?: return@Page
+    val context = LocalContext.current
     RoloamSectionBar("Stay")
-    JourneyHeader(state.preferences.transport,false)
-    Text("‹",fontSize=28.sp,modifier=Modifier.clickable{back()})
+    JourneyHeader(state.preferences.transport, false)
+    Text("‹", fontSize=28.sp, modifier=Modifier.clickable { back() })
     BigTitle("Tonight.")
-    Text("Closest useful stays, camping first.",color=RoloamMuted)
-    Spacer(Modifier.height(18.dp))
-    val all=listOfNotNull(trip.stay)+trip.alternativeStays
-    if(all.isEmpty()) {
-        Spacer(Modifier.weight(1f))
-        Text("No stay was returned by OpenStreetMap nearby.\nThe trip is still valid, but check accommodation before leaving.",lineHeight=24.sp)
-        Spacer(Modifier.weight(1f))
-    } else {
-        Column(Modifier.verticalScroll(rememberScrollState())) {
-            all.forEachIndexed { i,s ->
-                StayCard(s,i==0)
-                Spacer(Modifier.height(10.dp))
-            }
+    Text(
+        if (trip.days == 1) "A day trip — no overnight booking needed."
+        else "Browse actual listings; availability and prices must be verified.",
+        color=RoloamMuted
+    )
+    Spacer(Modifier.height(14.dp))
+    val all = listOfNotNull(trip.stay) + trip.alternativeStays
+    Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+        if (trip.days > 1 && all.isEmpty()) {
+            Text(
+                "No nearby listings were returned by OpenStreetMap. Search Google Maps below for campsites, hotels and other places to stay.",
+                lineHeight=22.sp
+            )
+            Spacer(Modifier.height(14.dp))
         }
+        all.forEachIndexed { index, stay ->
+            StayCard(stay, index == 0)
+            Spacer(Modifier.height(10.dp))
+        }
+        if (all.isNotEmpty()) {
+            Text(
+                "OpenStreetMap does not verify prices, vacant rooms or campsite availability. Check before leaving.",
+                fontSize=11.sp, color=RoloamMuted
+            )
+        }
+    }
+    if (trip.days > 1) {
+        Spacer(Modifier.height(12.dp))
+        OutlinedButton(
+            onClick = { launchMaps(context, MapsLinks.searchStays(trip.destination, true)) },
+            modifier=Modifier.fillMaxWidth().height(48.dp),
+            shape=RoundedCornerShape(14.dp)
+        ) { Text("FIND CAMPSITES ON MAPS →") }
+        Spacer(Modifier.height(6.dp))
+        OutlinedButton(
+            onClick = { launchMaps(context, MapsLinks.searchStays(trip.destination, false)) },
+            modifier=Modifier.fillMaxWidth().height(48.dp),
+            shape=RoundedCornerShape(14.dp)
+        ) { Text("FIND HOTELS & HOSTELS →") }
     }
 }
 
+private fun launchMaps(context: android.content.Context, url: String) {
+    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+}
+
 @Composable
-private fun StayCard(stay: Stay,recommended:Boolean) {
-    val ctx=LocalContext.current
-    Surface(shape=RoundedCornerShape(18.dp),tonalElevation=1.dp,modifier=Modifier.fillMaxWidth().border(1.dp,RoloamMuted.copy(alpha=.18f),RoundedCornerShape(18.dp))) {
+private fun StayCard(stay: Stay, recommended: Boolean) {
+    val context = LocalContext.current
+    Surface(
+        shape=RoundedCornerShape(18.dp),
+        tonalElevation=1.dp,
+        modifier=Modifier.fillMaxWidth().border(1.dp,RoloamMuted.copy(alpha=.18f),RoundedCornerShape(18.dp))
+    ) {
         Column(Modifier.padding(16.dp)) {
-            if(recommended) Text("RECOMMENDED",fontSize=10.sp,color=RoloamAccent,fontWeight=FontWeight.Bold)
-            Text(stay.name,fontSize=18.sp,fontWeight=FontWeight.Black)
-            Text(stay.category.replace('_',' ')+" · "+String.format("%.1f",stay.distanceFromCenterKm)+" km from centre",fontSize=12.sp,color=RoloamMuted)
-            stay.openingHours?.let{Text("Hours: "+it,fontSize=11.sp,color=RoloamMuted)}
-            stay.website?.let { url ->
-                OutlinedButton(onClick={runCatching{ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }},modifier=Modifier.padding(top=8.dp)) { Text("CHECK SITE →") }
+            if (recommended) Text("NEAREST MATCH", fontSize=10.sp, color=RoloamAccent, fontWeight=FontWeight.Bold)
+            Text(stay.name, fontSize=18.sp, fontWeight=FontWeight.Black)
+            Text(
+                stay.category.replace('_',' ') + " · " + String.format("%.1f",stay.distanceFromCenterKm) + " km from centre",
+                fontSize=12.sp,color=RoloamMuted
+            )
+            stay.phone?.let { Text("Phone: " + it, fontSize=11.sp, color=RoloamMuted) }
+            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = { launchMaps(context, MapsLinks.place(stay.name, stay.point)) }
+                ) { Text("MAPS ↗") }
+                stay.website?.let { site ->
+                    OutlinedButton(
+                        onClick = {
+                            val safe = if (site.startsWith("https://") || site.startsWith("http://")) site
+                                else if ("://" !in site) "https://" + site else ""
+                            if (safe.isNotBlank()) launchMaps(context, safe)
+                        }
+                    ) { Text("WEBSITE ↗") }
+                }
             }
         }
     }

@@ -55,9 +55,11 @@ class RoloamViewModel(app: Application) : AndroidViewModel(app) {
     fun back() {
         val target = when (_state.value.screen) {
             Screen.HOME -> Screen.HOME
-            Screen.PREFERENCES, Screen.SETTINGS -> Screen.HOME
+            Screen.PREFERENCES -> Screen.SETTINGS
+            Screen.SETTINGS -> Screen.HOME
             Screen.REVEAL -> Screen.HOME
-            Screen.PLAN, Screen.MAP, Screen.STAY, Screen.PLACE, Screen.NOW, Screen.WEATHER, Screen.PACKING -> Screen.PLAN
+            Screen.PLAN -> Screen.REVEAL
+            Screen.MAP, Screen.STAY, Screen.PLACE, Screen.NOW, Screen.WEATHER, Screen.PACKING -> Screen.PLAN
         }
         _state.value = _state.value.copy(screen = target, selectedStop = null)
     }
@@ -73,9 +75,11 @@ class RoloamViewModel(app: Application) : AndroidViewModel(app) {
 
     fun roll() {
         if (_state.value.rolling) return
+        val origin = _state.value.origin
+        val preferences = _state.value.preferences
         viewModelScope.launch {
             _state.value = _state.value.copy(rolling = true, error = null)
-            runCatching { trips.roll(_state.value.origin, _state.value.preferences) }
+            runCatching { trips.roll(origin, preferences) }
                 .onSuccess { plan ->
                     _state.value = _state.value.copy(rolling = false, trip = plan, screen = Screen.REVEAL)
                 }

@@ -24,7 +24,8 @@ data class Destination(
     val point: GeoPoint,
     val population: Long? = null,
     val travelMinutes: Int = 0,
-    val distanceKm: Double = 0.0
+    val distanceKm: Double = 0.0,
+    val routeEstimated: Boolean = false
 )
 
 data class Place(

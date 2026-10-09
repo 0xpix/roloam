@@ -1,3 +1,14 @@
+# Roloam changelog
+
+## 0.5.0-beta — Trip essentials
+
+- More resilient Overpass discovery, including a second provider and small towns for cycling/walking.
+- Reroll avoids recently suggested destinations and gives visible feedback.
+- Expanded hotel, hostel, cabin and camping searches, with a wider-area fallback.
+- Embedded map usability improvements and direct Google Maps directions.
+- Accommodation search fallback and direct map listings without claiming live availability.
+- Improved transport illustrations; added regression tests.
+
 # Changelog
 
 ## 0.4.1-beta
