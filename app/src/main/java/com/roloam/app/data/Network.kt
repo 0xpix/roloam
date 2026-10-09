@@ -80,6 +80,22 @@ data class OsrmTable(
     val distances: List<List<Double?>>? = null
 )
 
+data class OsrmRoutes(val routes: List<OsrmRoute> = emptyList())
+data class OsrmRoute(val geometry: OsrmGeometry? = null)
+data class OsrmGeometry(val coordinates: List<List<Double>> = emptyList())
+
+/** GeoJSON coordinate pairs from OSRM are [longitude, latitude]. */
+fun decodeRouteGeometry(payload: OsrmRoutes?): List<GeoPoint> =
+    payload?.routes?.firstOrNull()?.geometry?.coordinates.orEmpty().mapNotNull { pair ->
+        if (pair.size < 2) null else {
+            val lon = pair[0]
+            val lat = pair[1]
+            if (lat.isFinite() && lon.isFinite() && lat in -90.0..90.0 && lon in -180.0..180.0)
+                GeoPoint(lat, lon) else null
+        }
+    }
+
+
 data class OpenMeteo(
     val daily: OpenMeteoDaily? = null,
     val hourly: OpenMeteoHourly? = null
@@ -105,6 +121,7 @@ data class OpenMeteoHourly(
 class LiveDataSource(private val network: Network) {
     private val overpassAdapter = network.moshi.adapter(OverpassResponse::class.java)
     private val tableAdapter = network.moshi.adapter(OsrmTable::class.java)
+    private val routeAdapter = network.moshi.adapter(OsrmRoutes::class.java)
     private val weatherAdapter = network.moshi.adapter(OpenMeteo::class.java)
 
     // Public Overpass endpoints are best-effort services; try an independent mirror
@@ -166,6 +183,20 @@ class LiveDataSource(private val network: Network) {
             val meters = dists.getOrNull(i)
             if (sec == null) null else RouteMetric((sec / 60.0).roundToInt(), (meters ?: 0.0) / 1000.0)
         }
+    }
+
+    /** Fetch real road/path geometry. It is optional and never blocks the basic map. */
+    suspend fun routeGeometry(points: List<GeoPoint>, mode: String): List<GeoPoint> {
+        if (points.size < 2) return emptyList()
+        val base = when (mode) {
+            "bike" -> "https://routing.openstreetmap.de/routed-bike"
+            "walk" -> "https://routing.openstreetmap.de/routed-foot"
+            "car" -> "https://router.project-osrm.org"
+            else -> return emptyList() // Rail routing is not supported by these road services.
+        }
+        val coords = points.joinToString(";") { p -> "${p.lon},${p.lat}" }
+        val url = "$base/route/v1/driving/$coords?overview=simplified&geometries=geojson&steps=false"
+        return decodeRouteGeometry(routeAdapter.fromJson(network.get(url))).take(3000)
     }
 
     suspend fun attractions(center: GeoPoint, style: String, radiusKm: Int = 18): List<Place> {

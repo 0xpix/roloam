@@ -141,7 +141,7 @@ private fun PrimaryButton(text:String, enabled:Boolean=true, onClick:()->Unit) {
 }
 
 @Composable
-fun HomeScreen(state: UiState, open:(Screen)->Unit, roll:()->Unit) = Page {
+fun HomeScreen(state: UiState, open:(Screen)->Unit, roll:()->Unit, resume:()->Unit) = Page {
     Row(
         Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -201,7 +201,18 @@ fun HomeScreen(state: UiState, open:(Screen)->Unit, roll:()->Unit) = Page {
             Text(it, color=MaterialTheme.colorScheme.error, modifier=Modifier.padding(bottom=12.dp))
         }
         PrimaryButton("Roll a trip", onClick=roll)
-        Spacer(Modifier.height(14.dp))
+        if (state.savedTrip != null) {
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(
+                onClick=resume,
+                modifier=Modifier.fillMaxWidth().height(42.dp),
+                shape=RoundedCornerShape(15.dp)
+            ) {
+                Text("RESUME · " + state.savedTrip.destination.name.uppercase() + " →",
+                    fontSize=11.sp, maxLines=1, overflow=TextOverflow.Ellipsis)
+            }
+        }
+        Spacer(Modifier.height(10.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(10.dp)) {
             TinyChip("⌖  " + state.origin.label, Modifier.weight(1f)) { }
             TinyChip("⚙  Settings", Modifier.weight(1f)) { open(Screen.SETTINGS) }
@@ -379,7 +390,20 @@ fun PlanScreen(state: UiState, open:(Screen)->Unit, select:(TripStop)->Unit, bac
                     )
                 }
                 if (dayIndex == trip.days - 1) {
-                    add(TimelineUi("16:00", "Return to " + trip.originLabel, travelText(trip.destination.travelMinutes), TimelineKind.TRAVEL, null))
+                    val lastStop = day.stops.lastOrNull()
+                    val finished = lastStop?.let {
+                        runCatching {
+                            java.time.LocalTime.parse(it.time).plusMinutes(it.durationMinutes.toLong())
+                        }.getOrNull()
+                    }
+                    val depart = if (finished == null || finished.isBefore(java.time.LocalTime.of(16, 0)))
+                        java.time.LocalTime.of(16, 0) else finished
+                    add(TimelineUi(
+                        depart.format(DateTimeFormatter.ofPattern("HH:mm")),
+                        "Return to " + trip.originLabel,
+                        travelText(trip.destination.travelMinutes),
+                        TimelineKind.TRAVEL, null
+                    ))
                 }
             }
 
@@ -612,24 +636,55 @@ fun PlaceScreen(state: UiState, back:()->Unit) = Page {
 
 @Composable
 fun NowScreen(state: UiState, back:()->Unit) = Page {
-    val trip=state.trip ?: return@Page
-    val next=trip.allStops().firstOrNull()
+    val trip = state.trip ?: return@Page
+    val context = LocalContext.current
+    val prefs = remember(context) {
+        context.getSharedPreferences("roloam_progress", android.content.Context.MODE_PRIVATE)
+    }
+    val key = "visited_" + trip.generatedAtEpochMs
+    val stops = remember(trip) { trip.allStops() }
+    var index by remember(key) {
+        mutableIntStateOf(prefs.getInt(key, 0).coerceIn(0, stops.size))
+    }
+    val next = stops.getOrNull(index)
     RoloamSectionBar("Now")
     JourneyHeader(state.preferences.transport)
-    Text("‹",fontSize=28.sp,modifier=Modifier.clickable{back()})
+    Text("‹", fontSize=28.sp, modifier=Modifier.clickable { back() })
     BigTitle("Now.")
-    Text("Only the next thing matters.",color=RoloamMuted)
+    Text(
+        if (stops.isEmpty()) "No stops were returned for this destination."
+        else index.toString() + " of " + stops.size + " stops complete.",
+        color=RoloamMuted
+    )
     Spacer(Modifier.weight(1f))
-    if(next!=null){
-        Text("NEXT",fontSize=11.sp,fontWeight=FontWeight.Bold,color=RoloamMuted)
+    if (next != null) {
+        Text("UP NEXT · STOP " + (index + 1), fontSize=11.sp, fontWeight=FontWeight.Bold, color=RoloamMuted)
         BigTitle(next.place.name)
-        Text(next.time+" · "+next.whyNow,color=RoloamMuted)
+        Text(next.time + " · " + next.whyNow, color=RoloamMuted)
         Spacer(Modifier.height(20.dp))
-        val ctx=LocalContext.current
-        PrimaryButton("Go"){
-            val uri=Uri.parse("geo:${next.place.point.lat},${next.place.point.lon}?q=${next.place.point.lat},${next.place.point.lon}("+Uri.encode(next.place.name)+")")
-            runCatching{ctx.startActivity(Intent(Intent.ACTION_VIEW,uri))}
+        PrimaryButton("Navigate") {
+            val uri = Uri.parse("geo:${next.place.point.lat},${next.place.point.lon}?q=${next.place.point.lat},${next.place.point.lon}(" + Uri.encode(next.place.name) + ")")
+            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, uri)) }
         }
+        Spacer(Modifier.height(10.dp))
+        OutlinedButton(
+            onClick = {
+                index = (index + 1).coerceAtMost(stops.size)
+                prefs.edit().putInt(key, index).apply()
+            },
+            modifier=Modifier.fillMaxWidth().height(52.dp),
+            shape=RoundedCornerShape(18.dp)
+        ) { Text("MARK VISITED →") }
+    } else if (stops.isNotEmpty()) {
+        BigTitle("Trip complete.")
+        Text("Every planned stop is marked visited.", color=RoloamMuted)
+    }
+    if (index > 0) {
+        Spacer(Modifier.height(10.dp))
+        TextButton(onClick = {
+            index = (index - 1).coerceAtLeast(0)
+            prefs.edit().putInt(key, index).apply()
+        }) { Text("UNDO LAST STOP") }
     }
     Spacer(Modifier.weight(1f))
 }

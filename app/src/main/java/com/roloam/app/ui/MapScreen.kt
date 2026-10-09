@@ -20,6 +20,10 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.roloam.app.UiState
 import com.roloam.app.data.MapsLinks
+import com.roloam.app.data.LiveDataSource
+import com.roloam.app.data.Network
+import com.roloam.app.model.GeoPoint
+import com.roloam.app.model.TransportMode
 import com.roloam.app.model.allStops
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint as OsmPoint
@@ -135,19 +139,43 @@ fun MapScreen(state: UiState, back: () -> Unit) = Page {
         }
     }
     val cameraKey = trip.generatedAtEpochMs.toString() + ":" + mode.name
+    val routeSource = remember(context) { LiveDataSource(Network(context.applicationContext)) }
+    var routedLine by remember(cameraKey, state.preferences.transport) {
+        mutableStateOf<List<GeoPoint>?>(null)
+    }
+    LaunchedEffect(cameraKey, state.preferences.transport) {
+        if (state.preferences.transport == TransportMode.TRAIN) {
+            routedLine = emptyList()
+        } else {
+            val requestedMode = when (state.preferences.transport) {
+                TransportMode.CAR -> "car"
+                TransportMode.BIKE -> "bike"
+                TransportMode.WALK -> "walk"
+                TransportMode.TRAIN -> "train"
+            }
+            routedLine = runCatching {
+                routeSource.routeGeometry(pointData.map { it.first }, requestedMode)
+            }.getOrDefault(emptyList())
+        }
+    }
     AndroidView(
         modifier = Modifier.fillMaxWidth().weight(1f),
         factory = { mapView },
         update = { map ->
             // Rebuild only for a different trip/mode, not on every Compose recomposition.
             // Otherwise any attempt to pan or zoom immediately snaps back.
-            if (map.tag != cameraKey) {
-                map.tag = cameraKey
+            val previousRender = map.tag as? Pair<*, *>
+            val renderKey = cameraKey to (routedLine?.size ?: -1)
+            if (previousRender != renderKey) {
+                val reposition = previousRender?.first != cameraKey
+                map.tag = renderKey
                 map.overlays.clear()
                 val points = pointData.map { (point, _) -> OsmPoint(point.lat, point.lon) }
-                if (points.size > 1) {
+                val route = routedLine.orEmpty().map { OsmPoint(it.lat, it.lon) }
+                // No invented straight road route: when routing fails, show pins only.
+                if (route.size > 1) {
                     map.overlays.add(Polyline().apply {
-                        setPoints(points)
+                        setPoints(route)
                         outlinePaint.color = android.graphics.Color.rgb(80, 110, 91)
                         outlinePaint.strokeWidth = 5f
                     })
@@ -159,17 +187,18 @@ fun MapScreen(state: UiState, back: () -> Unit) = Page {
                         setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
                     })
                 }
-                map.post {
-                    if (map.tag == cameraKey) {
+                if (reposition) map.post {
+                    if (map.tag == renderKey) {
                         if (points.size == 1) {
                             map.controller.setZoom(13.0)
                             map.controller.setCenter(points.first())
                         } else if (points.isNotEmpty()) {
                             map.zoomToBoundingBox(org.osmdroid.util.BoundingBox.fromGeoPoints(points), true, 72)
                         }
-                        map.invalidate()
                     }
+                    map.invalidate()
                 }
+                else map.invalidate()
             }
         }
     )
@@ -186,7 +215,14 @@ fun MapScreen(state: UiState, back: () -> Unit) = Page {
         Text("OPEN GOOGLE MAPS DIRECTIONS →")
     }
     Text(
-        "OpenStreetMap points show stop order, not road geometry. Use directions for actual navigation.",
+        when {
+            state.preferences.transport == TransportMode.TRAIN ->
+                "Train: stops are shown as pins; use Maps for live transit navigation."
+            routedLine == null -> "Loading road or path geometry…"
+            routedLine!!.size > 1 ->
+                "Map shows a routed path and stops. Check directions for live navigation."
+            else -> "Routing unavailable. Showing stops only; open Maps for directions."
+        },
         fontSize = 10.sp,
         color = RoloamMuted,
         modifier = Modifier.padding(top = 7.dp, bottom = 3.dp)

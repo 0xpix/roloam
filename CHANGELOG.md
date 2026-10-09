@@ -1,5 +1,15 @@
 # Roloam changelog
 
+## 0.6.0-beta — Continue the journey
+
+- Saved accepted trips and their transport/style preferences persist on-device and can be resumed from Home after restarting the app.
+- Recent destination history survives restarts; rerolls actively avoid repeating the last destination.
+- Routing candidate lookups use smaller batches and handle partial provider outages.
+- Return travel is scheduled after the day's final activity, never before it.
+- Road/path-following map geometry with graceful fallback; map route loading status.
+- Packing checklist and visited-stop progress now persist per trip.
+- Regression tests for trip persistence and route parsing.
+
 ## 0.5.0-beta — Trip essentials
 
 - More resilient Overpass discovery, including a second provider and small towns for cycling/walking.

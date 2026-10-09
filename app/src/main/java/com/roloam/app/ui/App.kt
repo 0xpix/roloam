@@ -50,7 +50,7 @@ fun RoloamApp(vm: RoloamViewModel) {
         )
     ) {
         when (state.screen) {
-            Screen.HOME -> HomeScreen(state, vm::open, vm::roll)
+            Screen.HOME -> HomeScreen(state, vm::open, vm::roll, vm::resumeTrip)
             Screen.PREFERENCES -> PreferencesScreen(state.preferences, vm::updatePreferences, vm::back)
             Screen.SETTINGS -> SettingsScreen(
                 state = state,
