@@ -7,6 +7,7 @@
 - Routing candidate lookups use smaller batches and handle partial provider outages.
 - Return travel is scheduled after the day's final activity, never before it.
 - Road/path-following map geometry with graceful fallback; map route loading status.
+- Packing checklist and visited-stop progress now persist per trip.
 - Regression tests for trip persistence and route parsing.
 
 ## 0.5.0-beta — Trip essentials

@@ -12,6 +12,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -185,7 +186,16 @@ fun PackingScreen(state: UiState, back: () -> Unit) = Page {
     Text("Only what this trip actually needs.", color = RoloamMuted)
 
     val items = remember(trip, state.preferences) { buildPackingList(trip, state.preferences) }
-    val checked = remember { mutableStateMapOf<String, Boolean>() }
+    val context = LocalContext.current
+    val store = remember(context) {
+        context.getSharedPreferences("roloam_packing", android.content.Context.MODE_PRIVATE)
+    }
+    val key = "packed_" + trip.generatedAtEpochMs
+    val checked = remember(key) {
+        mutableStateMapOf<String, Boolean>().apply {
+            store.getStringSet(key, emptySet()).orEmpty().forEach { label -> this[label] = true }
+        }
+    }
 
     Spacer(Modifier.height(18.dp))
     val done = items.count { checked[it.label] == true }
@@ -211,7 +221,12 @@ fun PackingScreen(state: UiState, back: () -> Unit) = Page {
                 PackingRow(
                     item = item,
                     checked = checked[item.label] == true,
-                    onToggle = { checked[item.label] = !(checked[item.label] == true) }
+                    onToggle = {
+                        checked[item.label] = !(checked[item.label] == true)
+                        store.edit().putStringSet(
+                            key, checked.filterValues { it }.keys.toSet()
+                        ).apply()
+                    }
                 )
             }
         }
