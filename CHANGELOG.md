@@ -2,7 +2,7 @@
 
 ## 0.6.0-beta — Continue the journey
 
-- Saved accepted trips persist on-device and can be resumed from Home after restarting the app.
+- Saved accepted trips and their transport/style preferences persist on-device and can be resumed from Home after restarting the app.
 - Recent destination history survives restarts; rerolls actively avoid repeating the last destination.
 - Routing candidate lookups use smaller batches and handle partial provider outages.
 - Return travel is scheduled after the day's final activity, never before it.

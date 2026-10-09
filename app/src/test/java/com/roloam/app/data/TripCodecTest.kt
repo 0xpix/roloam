@@ -28,6 +28,14 @@ class TripCodecTest {
         assertTrue(saved.destination.routeEstimated)
     }
 
+    @Test fun travelPreferencesSurviveSerialization() {
+        val p = TripPreferences(
+            duration=DurationChoice.THREE, transport=TransportMode.BIKE,
+            budget=Budget.NORMAL, stay=StayPreference.CAMPING, style=TripStyle.NATURE
+        )
+        assertEquals(p, TripCodec.decodePreferences(TripCodec.encodePreferences(p)))
+    }
+
     @Test fun corruptDataIsNotSilentlyAccepted() {
         val error = runCatching { TripCodec.decode("{invalid") }.exceptionOrNull()
         assertTrue(error != null)
