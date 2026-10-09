@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.roloam.app.data.LocationRepository
 import com.roloam.app.data.Origin
 import com.roloam.app.data.TripRepository
+import com.roloam.app.data.TripStore
 import com.roloam.app.model.*
 import com.roloam.app.update.BetaUpdate
 import com.roloam.app.update.BetaUpdateManager
@@ -24,6 +25,7 @@ data class UiState(
     val origin: Origin = Origin("Heidelberg", GeoPoint(49.3988, 8.6724), true),
     val rolling: Boolean = false,
     val trip: TripPlan? = null,
+    val savedTrip: TripPlan? = null,
     val selectedStop: TripStop? = null,
     val error: String? = null,
     val updateChecking: Boolean = false,
@@ -36,9 +38,10 @@ data class UiState(
 class RoloamViewModel(app: Application) : AndroidViewModel(app) {
     private val location = LocationRepository(app)
     private val trips = TripRepository(app)
+    private val tripStore = TripStore(app)
     private val updates = BetaUpdateManager(app)
     private val prefsStore = app.getSharedPreferences("roloam", 0)
-    private val _state = MutableStateFlow(UiState(preferences = loadPreferences()))
+    private val _state = MutableStateFlow(UiState(preferences = loadPreferences(), savedTrip = tripStore.load()))
     val state: StateFlow<UiState> = _state.asStateFlow()
 
     fun refreshLocation() {
@@ -90,7 +93,14 @@ class RoloamViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun acceptTrip() {
-        if (_state.value.trip != null) open(Screen.PLAN)
+        val plan = _state.value.trip ?: return
+        tripStore.save(plan)
+        _state.value = _state.value.copy(savedTrip = plan, screen = Screen.PLAN, error = null)
+    }
+
+    fun resumeTrip() {
+        val plan = _state.value.savedTrip ?: return
+        _state.value = _state.value.copy(trip = plan, screen = Screen.PLAN, error = null)
     }
 
     fun checkForBetaUpdate() {

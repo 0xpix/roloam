@@ -16,10 +16,25 @@ import kotlin.random.Random
 class TripRepository(context: Context) {
     private val source = LiveDataSource(Network(context))
     private val random = Random.Default
-    private val recentDestinations = ArrayDeque<String>()
+    private val discoveryPrefs = context.getSharedPreferences("roloam_discovery", Context.MODE_PRIVATE)
+    private val recentDestinations = ArrayDeque(
+        discoveryPrefs.getString("recent_destinations", "").orEmpty()
+            .split("|").filter { it.isNotBlank() }
+    )
     private var cityCache: CachedCities? = null
 
     suspend fun roll(origin: Origin, prefs: TripPreferences): TripPlan = coroutineScope {
+        val lastLat = discoveryPrefs.getString("origin_lat", null)?.toDoubleOrNull()
+        val lastLon = discoveryPrefs.getString("origin_lon", null)?.toDoubleOrNull()
+        if (lastLat == null || lastLon == null ||
+            haversine(GeoPoint(lastLat, lastLon), origin.point) > 50.0) {
+            recentDestinations.clear()
+            discoveryPrefs.edit()
+                .putString("origin_lat", origin.point.lat.toString())
+                .putString("origin_lon", origin.point.lon.toString())
+                .remove("recent_destinations")
+                .apply()
+        }
         val days = when (prefs.duration) {
             DurationChoice.ONE -> 1
             DurationChoice.TWO -> 2
@@ -55,8 +70,11 @@ class TripRepository(context: Context) {
                 TransportMode.WALK -> "walk"
                 else -> "car"
             }
-            runCatching { source.routeTable(origin.point, prelim.map { it.point }, mode) }
-                .getOrDefault(List(prelim.size) { null })
+            // Public routing endpoints can reject huge tables. Isolate failures by batch.
+            prelim.chunked(12).flatMap { batch ->
+                runCatching { source.routeTable(origin.point, batch.map { it.point }, mode) }
+                    .getOrDefault(List(batch.size) { null })
+            }
         }
 
         val candidates = prelim.mapIndexed { i, city ->
@@ -86,9 +104,15 @@ class TripRepository(context: Context) {
 
         // Never return the previous destination while another viable option exists.
         val freshPool = pool.filterNot { recentDestinations.contains(it.name.lowercase()) }
-        val chosen = weightedPick(freshPool.ifEmpty { pool })
+        val allowed = freshPool.ifEmpty {
+            pool.filterNot { it.name.lowercase() == recentDestinations.firstOrNull() }
+                .ifEmpty { pool }
+        }
+        val chosen = weightedPick(allowed)
+        recentDestinations.remove(chosen.name.lowercase())
         recentDestinations.addFirst(chosen.name.lowercase())
-        while (recentDestinations.size > 12) recentDestinations.removeLast()
+        while (recentDestinations.size > 10) recentDestinations.removeLast()
+        discoveryPrefs.edit().putString("recent_destinations", recentDestinations.joinToString("|")).apply()
 
         val startDate = nextSaturday(LocalDate.now())
 

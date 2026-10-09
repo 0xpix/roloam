@@ -141,7 +141,7 @@ private fun PrimaryButton(text:String, enabled:Boolean=true, onClick:()->Unit) {
 }
 
 @Composable
-fun HomeScreen(state: UiState, open:(Screen)->Unit, roll:()->Unit) = Page {
+fun HomeScreen(state: UiState, open:(Screen)->Unit, roll:()->Unit, resume:()->Unit) = Page {
     Row(
         Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -201,7 +201,18 @@ fun HomeScreen(state: UiState, open:(Screen)->Unit, roll:()->Unit) = Page {
             Text(it, color=MaterialTheme.colorScheme.error, modifier=Modifier.padding(bottom=12.dp))
         }
         PrimaryButton("Roll a trip", onClick=roll)
-        Spacer(Modifier.height(14.dp))
+        if (state.savedTrip != null) {
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(
+                onClick=resume,
+                modifier=Modifier.fillMaxWidth().height(42.dp),
+                shape=RoundedCornerShape(15.dp)
+            ) {
+                Text("RESUME · " + state.savedTrip.destination.name.uppercase() + " →",
+                    fontSize=11.sp, maxLines=1, overflow=TextOverflow.Ellipsis)
+            }
+        }
+        Spacer(Modifier.height(10.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(10.dp)) {
             TinyChip("⌖  " + state.origin.label, Modifier.weight(1f)) { }
             TinyChip("⚙  Settings", Modifier.weight(1f)) { open(Screen.SETTINGS) }
@@ -379,7 +390,20 @@ fun PlanScreen(state: UiState, open:(Screen)->Unit, select:(TripStop)->Unit, bac
                     )
                 }
                 if (dayIndex == trip.days - 1) {
-                    add(TimelineUi("16:00", "Return to " + trip.originLabel, travelText(trip.destination.travelMinutes), TimelineKind.TRAVEL, null))
+                    val lastStop = day.stops.lastOrNull()
+                    val finished = lastStop?.let {
+                        runCatching {
+                            java.time.LocalTime.parse(it.time).plusMinutes(it.durationMinutes.toLong())
+                        }.getOrNull()
+                    }
+                    val depart = if (finished == null || finished.isBefore(java.time.LocalTime.of(16, 0)))
+                        java.time.LocalTime.of(16, 0) else finished
+                    add(TimelineUi(
+                        depart.format(DateTimeFormatter.ofPattern("HH:mm")),
+                        "Return to " + trip.originLabel,
+                        travelText(trip.destination.travelMinutes),
+                        TimelineKind.TRAVEL, null
+                    ))
                 }
             }
 
