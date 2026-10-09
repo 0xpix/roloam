@@ -281,7 +281,7 @@ fun RevealScreen(state: UiState, accept:()->Unit, reroll:()->Unit, back:()->Unit
     Spacer(Modifier.height(12.dp))
     val h=trip.destination.travelMinutes/60
     val m=trip.destination.travelMinutes%60
-    val travelPrefix = if (state.preferences.transport == TransportMode.TRAIN) "≈ " else ""
+    val travelPrefix = if (trip.destination.routeEstimated) "≈ " else ""
     val stayText = if (trip.days == 1) "day trip" else (trip.stay?.let{if(it.category.contains("camp")) "camping found" else "stay found"} ?: "check stay")
     Text(travelPrefix + (if(h>0) h.toString()+"h " else "") + m + "m  ·  " + trip.destination.distanceKm.roundToInt() + " km  ·  " + stayText)
     Spacer(Modifier.weight(1f))
@@ -360,7 +360,7 @@ fun PlanScreen(state: UiState, open:(Screen)->Unit, select:(TripStop)->Unit, bac
 
             val rows = buildList {
                 if (dayIndex == 0) {
-                    val t = (if (state.preferences.transport == TransportMode.TRAIN) "estimated · " else "") +
+                    val t = (if (trip.destination.routeEstimated) "estimated · " else "") +
                         travelText(trip.destination.travelMinutes)
                     add(TimelineUi("08:00", "Depart " + trip.originLabel, t, TimelineKind.TRAVEL, null))
                 }

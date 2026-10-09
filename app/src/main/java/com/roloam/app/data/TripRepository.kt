@@ -73,15 +73,16 @@ class TripRepository(context: Context) {
                 city.country,
                 city.point,
                 city.population,
-                metric?.minutes ?: ((fallbackKm / speed) * 60).roundToInt(),
-                if ((metric?.distanceKm ?: 0.0) > 0) metric!!.distanceKm else fallbackKm
+                metric?.minutes ?: ((fallbackKm * 1.25 / speed) * 60).roundToInt(),
+                if ((metric?.distanceKm ?: 0.0) > 0) metric!!.distanceKm else fallbackKm * 1.25,
+                routeEstimated = metric == null || prefs.transport == TransportMode.TRAIN
             )
         }.filter { validTravel(it.travelMinutes, days, prefs.transport) }
 
-        val pool = (if (candidates.isNotEmpty()) candidates else prelim.map {
-            val km = haversine(origin.point, it.point)
-            Destination(it.name, it.country, it.point, it.population, ((km / 75) * 60).roundToInt(), km)
-        }).sortedByDescending { score(it, days, prefs) }.take(20)
+        val pool = candidates.sortedByDescending { score(it, days, prefs) }.take(20)
+        if (pool.isEmpty()) {
+            error("No destinations match the travel-time range. Try another duration or transport mode.")
+        }
 
         // Never return the previous destination while another viable option exists.
         val freshPool = pool.filterNot { recentDestinations.contains(it.name.lowercase()) }
