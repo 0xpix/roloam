@@ -54,7 +54,7 @@ fun RoloamApp(vm: RoloamViewModel) {
     ) {
         CompositionLocalProvider(LocalGoHome provides vm::goHome) {
         when (state.screen) {
-            Screen.HOME -> HomeScreen(state, vm::open, vm::roll, vm::resumeTrip, vm::cancelTrip)
+            Screen.HOME -> HomeScreen(state, vm::open, vm::roll, vm::resumeTrip, vm::cancelTrip, vm::discoverAnotherTrip)
             Screen.PREFERENCES -> PreferencesScreen(state.preferences, vm::updatePreferences, vm::back)
             Screen.SETTINGS -> SettingsScreen(
                 state = state,
@@ -69,7 +69,10 @@ fun RoloamApp(vm: RoloamViewModel) {
             Screen.MAP -> MapScreen(state, vm::back)
             Screen.STAY -> StayScreen(state, vm::back)
             Screen.PLACE -> PlaceScreen(state, vm::back)
-            Screen.NOW -> NowScreen(state, vm::back)
+            Screen.NOW -> NowScreen(
+                state, vm::back, vm::markVisited, vm::unmarkVisited,
+                vm::suggestReplacement, vm::discoverAnotherTrip
+            )
             Screen.WEATHER -> WeatherScreen(state, vm::back)
             Screen.PACKING -> PackingScreen(state, vm::back)
         }

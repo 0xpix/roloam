@@ -111,6 +111,10 @@ class RoloamViewModel(app: Application) : AndroidViewModel(app) {
         visitedPlaces.mark(stop.place)
     }
 
+    fun unmarkVisited(stop: TripStop) {
+        visitedPlaces.unmark(stop.place)
+    }
+
     /** Already explored this stop? Keep the trip but find a new local POI. */
     fun suggestReplacement(stop: TripStop) {
         if (_state.value.replacingPlace) return

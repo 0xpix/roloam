@@ -23,6 +23,10 @@ class VisitedPlaces(context: Context) {
 
     fun contains(place: Place): Boolean = PlaceIdentity.key(place) in all()
 
+    fun unmark(place: Place) {
+        prefs.edit().putStringSet("known", all() - PlaceIdentity.key(place)).apply()
+    }
+
     fun mark(place: Place) {
         val updated = (all() + PlaceIdentity.key(place)).takeLast(500).toSet()
         prefs.edit().putStringSet("known", updated).apply()

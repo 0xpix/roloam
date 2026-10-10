@@ -14,6 +14,8 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -41,69 +43,68 @@ fun Page(content: @Composable ColumnScope.() -> Unit) {
     }
 }
 
+/**
+ * A real, recognisable mode symbol moves along the dotted roaming path.
+ * Android renders colour emoji consistently; subtle transport-specific motion
+ * avoids trying to fake a bicycle/train out of a few unrecognisable strokes.
+ */
 @Composable
 fun JourneyHeader(mode: TransportMode, active: Boolean = true) {
-    val infinite = rememberInfiniteTransition(label = "journey")
-    val progress by infinite.animateFloat(
-        0.12f, 0.88f,
-        infiniteRepeatable(tween(3000, easing = LinearEasing), RepeatMode.Restart),
-        label = "progress"
+    val symbol = when(mode) {
+        TransportMode.CAR -> "🚗"
+        TransportMode.TRAIN -> "🚆"
+        TransportMode.BIKE -> "🚴"
+        TransportMode.WALK -> "🚶"
+    }
+    val speed = when(mode) {
+        TransportMode.TRAIN -> 2800
+        TransportMode.CAR -> 3700
+        TransportMode.BIKE -> 4900
+        TransportMode.WALK -> 6200
+    }
+    val infinite = rememberInfiniteTransition(label="roaming")
+    val animated by infinite.animateFloat(
+        initialValue=.02f, targetValue=.96f,
+        animationSpec=infiniteRepeatable(animation=tween(speed,easing=LinearEasing),repeatMode=RepeatMode.Restart),
+        label="travel"
     )
-    val p = if (active) progress else .58f
-    val bg = MaterialTheme.colorScheme.background
-    Canvas(Modifier.fillMaxWidth().height(52.dp)) {
-        val y = size.height * .55f
-        val path = Path()
-        val left = size.width * .05f
-        val right = size.width * .95f
-        path.moveTo(left, y)
-        val segments = 44
-        for (i in 1..segments) {
-            val f = i / segments.toFloat()
-            val x = left + (right - left) * f
-            val yy = y + sin(f * 9f * Math.PI).toFloat() * 5.dp.toPx()
-            path.lineTo(x, yy)
+    val progress = if(active) animated else .48f
+    val bob = if(active) when(mode) {
+        TransportMode.TRAIN -> 0f
+        TransportMode.CAR -> kotlin.math.sin(progress * 30f).toFloat() * .8f
+        TransportMode.BIKE -> kotlin.math.sin(progress * 34f).toFloat() * 1.7f
+        TransportMode.WALK -> kotlin.math.sin(progress * 36f).toFloat() * 2.7f
+    } else 0f
+    BoxWithConstraints(Modifier.fillMaxWidth().height(56.dp)) {
+        Canvas(Modifier.fillMaxSize()) {
+            val left=14.dp.toPx()
+            val right=size.width-14.dp.toPx()
+            val centerY=size.height*.56f
+            val trail=Path().apply {
+                moveTo(left,centerY)
+                cubicTo(size.width*.3f,centerY-11.dp.toPx(),
+                    size.width*.7f,centerY+10.dp.toPx(),right,centerY)
+            }
+            drawPath(trail,color=RoloamMuted.copy(alpha=.45f),
+                style=Stroke(
+                    width=1.4.dp.toPx(),cap=StrokeCap.Round,
+                    pathEffect=androidx.compose.ui.graphics.PathEffect.dashPathEffect(
+                        floatArrayOf(3.dp.toPx(),6.dp.toPx())
+                    )
+                )
+            )
+            drawCircle(RoloamMuted.copy(alpha=.65f),3.dp.toPx(),Offset(left,centerY))
+            drawCircle(RoloamAccent,4.dp.toPx(),Offset(right,centerY),style=Stroke(1.8.dp.toPx()))
         }
-        drawPath(path, RoloamMuted.copy(alpha=.65f), style=Stroke(width=1.5.dp.toPx(), pathEffect=androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 5.dp.toPx()))))
-        drawCircle(RoloamInk, 4.dp.toPx(), Offset(left, y))
-        drawCircle(RoloamAccent, 4.dp.toPx(), Offset(right, y), style=Stroke(2.dp.toPx()))
-        val x = left + (right-left)*p
-        val yy = y + sin(p * 9f * Math.PI).toFloat() * 5.dp.toPx()
-        when(mode) {
-            TransportMode.CAR -> {
-                drawRoundRect(RoloamInk, Offset(x-10.dp.toPx(),yy-6.dp.toPx()), androidx.compose.ui.geometry.Size(20.dp.toPx(),10.dp.toPx()), androidx.compose.ui.geometry.CornerRadius(3.dp.toPx()))
-                drawCircle(bg, 2.5.dp.toPx(), Offset(x-6.dp.toPx(), yy+5.dp.toPx()))
-                drawCircle(bg, 2.5.dp.toPx(), Offset(x+6.dp.toPx(), yy+5.dp.toPx()))
-            }
-            TransportMode.TRAIN -> {
-                drawRoundRect(RoloamInk, Offset(x-7.dp.toPx(),yy-9.dp.toPx()), androidx.compose.ui.geometry.Size(14.dp.toPx(),18.dp.toPx()), androidx.compose.ui.geometry.CornerRadius(3.dp.toPx()))
-                drawLine(bg, Offset(x-4.dp.toPx(),yy-4.dp.toPx()),Offset(x+4.dp.toPx(),yy-4.dp.toPx()),2.dp.toPx())
-            }
-            TransportMode.BIKE -> {
-                val rear = Offset(x - 14.dp.toPx(), yy + 7.dp.toPx())
-                val front = Offset(x + 14.dp.toPx(), yy + 7.dp.toPx())
-                val crank = Offset(x, yy + 7.dp.toPx())
-                val saddle = Offset(x - 6.dp.toPx(), yy - 4.dp.toPx())
-                val stem = Offset(x + 7.dp.toPx(), yy - 5.dp.toPx())
-                val stroke = 1.7.dp.toPx()
-                drawCircle(RoloamInk, 6.5.dp.toPx(), rear, style = Stroke(stroke))
-                drawCircle(RoloamInk, 6.5.dp.toPx(), front, style = Stroke(stroke))
-                drawLine(RoloamInk, rear, saddle, stroke, cap = StrokeCap.Round)
-                drawLine(RoloamInk, rear, crank, stroke, cap = StrokeCap.Round)
-                drawLine(RoloamInk, saddle, crank, stroke, cap = StrokeCap.Round)
-                drawLine(RoloamInk, saddle, stem, stroke, cap = StrokeCap.Round)
-                drawLine(RoloamInk, stem, crank, stroke, cap = StrokeCap.Round)
-                drawLine(RoloamInk, stem, front, stroke, cap = StrokeCap.Round)
-                drawLine(RoloamInk, Offset(saddle.x - 3.dp.toPx(), saddle.y), Offset(saddle.x + 2.dp.toPx(), saddle.y), stroke, cap = StrokeCap.Round)
-                drawLine(RoloamInk, Offset(stem.x - 2.dp.toPx(), stem.y - 2.dp.toPx()), Offset(stem.x + 3.dp.toPx(), stem.y - 2.dp.toPx()), stroke, cap = StrokeCap.Round)
-            }
-            TransportMode.WALK -> {
-                drawCircle(RoloamInk, 3.dp.toPx(), Offset(x,yy-8.dp.toPx()))
-                drawLine(RoloamInk,Offset(x,yy-4.dp.toPx()),Offset(x,yy+4.dp.toPx()),2.dp.toPx(),cap=StrokeCap.Round)
-                drawLine(RoloamInk,Offset(x,yy),Offset(x-6.dp.toPx(),yy+6.dp.toPx()),2.dp.toPx(),cap=StrokeCap.Round)
-                drawLine(RoloamInk,Offset(x,yy+4.dp.toPx()),Offset(x+6.dp.toPx(),yy+9.dp.toPx()),2.dp.toPx(),cap=StrokeCap.Round)
-            }
-        }
+        Text(
+            symbol, fontSize=27.sp, lineHeight=30.sp,
+            modifier=Modifier
+                .offset(
+                    x=(maxWidth-38.dp)*progress,
+                    y=(7f+bob).dp
+                )
+                .semantics { contentDescription=mode.name.lowercase() + " journey" }
+        )
     }
 }
 
@@ -141,9 +142,9 @@ private fun PrimaryButton(text:String, enabled:Boolean=true, onClick:()->Unit) {
 }
 
 @Composable
-fun HomeScreen(state: UiState, open:(Screen)->Unit, roll:()->Unit, resume:()->Unit, cancelTrip:()->Unit) = Page {
+fun HomeScreen(state: UiState, open:(Screen)->Unit, roll:()->Unit, resume:()->Unit, cancelTrip:()->Unit, anotherTrip:()->Unit) = Page {
     if (state.savedTrip != null) {
-        ActiveTripHome(state, open, resume, cancelTrip)
+        ActiveTripHome(state, open, resume, cancelTrip, anotherTrip)
         return@Page
     }
     Row(
@@ -218,96 +219,94 @@ fun HomeScreen(state: UiState, open:(Screen)->Unit, roll:()->Unit, resume:()->Un
 }
 
 @Composable
-private fun ColumnScope.ActiveTripHome(state: UiState, open:(Screen)->Unit, resume:()->Unit, cancelTrip:()->Unit) {
-    val trip = state.savedTrip ?: return
-    val context = LocalContext.current
-    val progressPrefs = remember(context) {
-        context.getSharedPreferences("roloam_progress", android.content.Context.MODE_PRIVATE)
+private fun ColumnScope.ActiveTripHome(
+    state: UiState,
+    open: (Screen)->Unit,
+    resume: ()->Unit,
+    cancelTrip: ()->Unit,
+    anotherTrip: ()->Unit
+) {
+    val trip=state.savedTrip ?: return
+    val context=LocalContext.current
+    val prefs=remember(context) {
+        context.getSharedPreferences("roloam_progress",android.content.Context.MODE_PRIVATE)
     }
-    val packedPrefs = remember(context) {
-        context.getSharedPreferences("roloam_packing", android.content.Context.MODE_PRIVATE)
-    }
-    val allStops = remember(trip) { trip.allStops() }
-    // Refresh progress whenever Home is entered/recomposed following a screen change.
-    val complete = progressPrefs.getInt("visited_" + trip.generatedAtEpochMs, 0).coerceIn(0, allStops.size)
-    val packed = packedPrefs.getStringSet("packed_" + trip.generatedAtEpochMs, emptySet()).orEmpty().size
-    val upcoming = allStops.getOrNull(complete)
+    val stops=remember(trip) { trip.allStops() }
+    val visited=prefs.getInt("visited_"+trip.generatedAtEpochMs,0).coerceIn(0,stops.size)
+    val next=stops.getOrNull(visited)
     var confirmCancel by remember(trip.generatedAtEpochMs) { mutableStateOf(false) }
 
-    RoloamSectionBar("YOUR JOURNEY")
-    Spacer(Modifier.height(20.dp))
-    Text("TRIP IN PROGRESS", fontSize=11.sp, letterSpacing=1.5.sp, color=RoloamAccent, fontWeight=FontWeight.Bold)
-    Spacer(Modifier.height(8.dp))
+    RoloamSectionBar("JOURNEY")
+    Spacer(Modifier.height(17.dp))
+    Text("YOU'RE GOING TO",fontSize=10.sp,letterSpacing=1.4.sp,
+        fontWeight=FontWeight.Bold,color=RoloamAccent)
+    Spacer(Modifier.height(5.dp))
     BigTitle(trip.destination.name)
     Text(
         trip.startDate.format(DateTimeFormatter.ofPattern("EEE d MMM")) +
-            " · " + trip.days + if (trip.days == 1) " day" else " days",
-        fontSize=13.sp, color=RoloamMuted
+            " · " + trip.days + (if(trip.days==1) " day" else " days"),
+        fontSize=12.sp,color=RoloamMuted
     )
     JourneyHeader(state.savedTripPreferences?.transport ?: state.preferences.transport, false)
     Spacer(Modifier.height(10.dp))
 
-    Surface(
+    Text("NEXT STOP",fontSize=10.sp,color=RoloamMuted,letterSpacing=1.1.sp,fontWeight=FontWeight.Bold)
+    Spacer(Modifier.height(7.dp))
+    Text(
+        next?.place?.name ?: "Ready for somewhere new?",
+        fontSize=22.sp,fontWeight=FontWeight.Black,
+        maxLines=2,overflow=TextOverflow.Ellipsis
+    )
+    Text(
+        next?.let { it.time + " · " + it.place.category.replace('_',' ') }
+            ?: "You've explored every planned stop.",
+        fontSize=12.sp,color=RoloamMuted
+    )
+    Spacer(Modifier.height(18.dp))
+    LinearProgressIndicator(
+        progress={if(stops.isEmpty()) 0f else visited.toFloat()/stops.size},
         modifier=Modifier.fillMaxWidth(),
-        shape=RoundedCornerShape(18.dp),
-        color=MaterialTheme.colorScheme.surfaceVariant.copy(alpha=.18f)
-    ) {
-        Column(Modifier.padding(17.dp)) {
-            Text("UP NEXT", color=RoloamAccent, fontSize=10.sp, fontWeight=FontWeight.Bold, letterSpacing=1.3.sp)
-            Spacer(Modifier.height(8.dp))
-            Text(upcoming?.place?.name ?: "All planned stops completed",
-                fontSize=19.sp, fontWeight=FontWeight.Black, maxLines=2, overflow=TextOverflow.Ellipsis)
-            Text(
-                upcoming?.let { it.time + " · " + it.durationMinutes + " min" } ?: "Enjoy the rest of your trip.",
-                fontSize=11.sp, color=RoloamMuted
-            )
-            Spacer(Modifier.height(15.dp))
-            LinearProgressIndicator(
-                progress = { if (allStops.isEmpty()) 0f else complete.toFloat() / allStops.size },
-                modifier=Modifier.fillMaxWidth(),
-                color=RoloamAccent
-            )
-            Spacer(Modifier.height(7.dp))
-            Text("$complete / ${allStops.size} stops visited", fontSize=11.sp, color=RoloamMuted)
-        }
-    }
-    Spacer(Modifier.height(12.dp))
+        color=RoloamAccent
+    )
+    Spacer(Modifier.height(7.dp))
+    Text("$visited / ${stops.size} places visited",fontSize=11.sp,color=RoloamMuted)
 
-    Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(9.dp)) {
-        DashboardMetric("WEATHER", trip.itinerary.firstOrNull()?.weather?.maxC?.roundToInt()?.let { "$it°C" } ?: "—", Modifier.weight(1f))
-        DashboardMetric("PACKED", "$packed items", Modifier.weight(1f))
-        DashboardMetric("STAY", if (trip.days == 1) "Day trip" else if(trip.stay == null) "Check" else "Found", Modifier.weight(1f))
-    }
     Spacer(Modifier.weight(1f))
-    PrimaryButton("Continue journey") { open(Screen.NOW) }
-    Spacer(Modifier.height(8.dp))
-    Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-        TinyChip("PLAN", Modifier.weight(1f)) { resume() }
-        TinyChip("MAP", Modifier.weight(1f)) { open(Screen.MAP) }
-        TinyChip("STAY", Modifier.weight(1f)) { open(Screen.STAY) }
+    if(state.rolling) {
+        Text("Finding another adventure…",color=RoloamMuted,fontSize=12.sp)
+        Spacer(Modifier.height(8.dp))
+        LinearProgressIndicator(Modifier.fillMaxWidth(),color=RoloamAccent)
     }
-    Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-        TinyChip("PACKING", Modifier.weight(1f)) { open(Screen.PACKING) }
-        TinyChip("SETTINGS", Modifier.weight(1f)) { open(Screen.SETTINGS) }
+    state.error?.let {
+        Text(it,color=MaterialTheme.colorScheme.error,fontSize=12.sp,
+            modifier=Modifier.padding(bottom=10.dp))
+    }
+    PrimaryButton(if(next==null) "Explore another place" else "Continue trip",
+        enabled=!state.rolling) {
+        if(next==null) anotherTrip() else open(Screen.NOW)
+    }
+    Spacer(Modifier.height(9.dp))
+    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(9.dp)) {
+        TinyChip("PLAN",Modifier.weight(1f)) {resume()}
+        TinyChip("MAP",Modifier.weight(1f)) {open(Screen.MAP)}
+        TinyChip("MORE",Modifier.weight(1f)) {open(Screen.SETTINGS)}
     }
     TextButton(
-        onClick={ confirmCancel = true },
+        onClick=anotherTrip,enabled=!state.rolling,
         modifier=Modifier.fillMaxWidth()
-    ) { Text("CANCEL TRIP", color=RoloamMuted, fontSize=11.sp) }
-
-    if(confirmCancel) {
-        AlertDialog(
-            onDismissRequest={confirmCancel=false},
-            title={Text("Cancel this trip?")},
-            text={Text("This returns to the original Home and clears the saved journey and its progress.")},
-            confirmButton={
-                TextButton(onClick={confirmCancel=false;cancelTrip()}){Text("CANCEL TRIP")}
-            },
-            dismissButton={
-                TextButton(onClick={confirmCancel=false}){Text("KEEP TRIP")}
-            }
-        )
+    ) {Text("FIND A DIFFERENT DESTINATION ↻",fontSize=11.sp)}
+    TextButton(onClick={confirmCancel=true},modifier=Modifier.fillMaxWidth()) {
+        Text("CANCEL TRIP",color=RoloamMuted,fontSize=11.sp)
     }
+    if(confirmCancel) AlertDialog(
+        onDismissRequest={confirmCancel=false},
+        title={Text("Cancel this trip?")},
+        text={Text("Return to the original Home and clear this journey's saved progress?")},
+        confirmButton={
+            TextButton(onClick={confirmCancel=false;cancelTrip()}){Text("CANCEL TRIP")}
+        },
+        dismissButton={TextButton(onClick={confirmCancel=false}){Text("KEEP TRIP")}}
+    )
 }
 
 @Composable
@@ -733,56 +732,79 @@ fun PlaceScreen(state: UiState, back:()->Unit) = Page {
 }
 
 @Composable
-fun NowScreen(state: UiState, back:()->Unit) = Page {
-    val trip = state.trip ?: return@Page
-    val context = LocalContext.current
-    val prefs = remember(context) {
-        context.getSharedPreferences("roloam_progress", android.content.Context.MODE_PRIVATE)
+fun NowScreen(
+    state: UiState,
+    back: ()->Unit,
+    markVisited: (TripStop)->Unit,
+    unmarkVisited: (TripStop)->Unit,
+    replacement: (TripStop)->Unit,
+    discoverAnotherTrip: ()->Unit
+) = Page {
+    val trip=state.trip ?: return@Page
+    val context=LocalContext.current
+    val prefs=remember(context) {
+        context.getSharedPreferences("roloam_progress",android.content.Context.MODE_PRIVATE)
     }
-    val key = "visited_" + trip.generatedAtEpochMs
-    val stops = remember(trip) { trip.allStops() }
+    val key="visited_"+trip.generatedAtEpochMs
+    val stops=remember(trip) { trip.allStops() }
     var index by remember(key) {
-        mutableIntStateOf(prefs.getInt(key, 0).coerceIn(0, stops.size))
+        mutableIntStateOf(prefs.getInt(key,0).coerceIn(0,stops.size))
     }
-    val next = stops.getOrNull(index)
-    RoloamSectionBar("Now")
+    val next=stops.getOrNull(index)
+    RoloamSectionBar("NOW")
     JourneyHeader(state.preferences.transport)
-    Text("‹", fontSize=28.sp, modifier=Modifier.clickable { back() })
-    BigTitle("Now.")
-    Text(
-        if (stops.isEmpty()) "No stops were returned for this destination."
-        else index.toString() + " of " + stops.size + " stops complete.",
-        color=RoloamMuted
-    )
+    Text("‹  Now.",fontSize=29.sp,fontWeight=FontWeight.Black,
+        modifier=Modifier.clickable {back()})
+    Text("$index of ${stops.size} places completed",color=RoloamMuted,fontSize=12.sp)
     Spacer(Modifier.weight(1f))
-    if (next != null) {
-        Text("UP NEXT · STOP " + (index + 1), fontSize=11.sp, fontWeight=FontWeight.Bold, color=RoloamMuted)
+    if(next != null) {
+        Text("UP NEXT",fontSize=11.sp,fontWeight=FontWeight.Bold,color=RoloamAccent)
+        Spacer(Modifier.height(10.dp))
         BigTitle(next.place.name)
-        Text(next.time + " · " + next.whyNow, color=RoloamMuted)
-        Spacer(Modifier.height(20.dp))
-        PrimaryButton("Navigate") {
-            val uri = Uri.parse("geo:${next.place.point.lat},${next.place.point.lon}?q=${next.place.point.lat},${next.place.point.lon}(" + Uri.encode(next.place.name) + ")")
-            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, uri)) }
+        Text(next.time+" · "+next.place.category.replace('_',' '),color=RoloamMuted)
+        Spacer(Modifier.height(16.dp))
+        PrimaryButton("Navigate there",enabled=!state.replacingPlace) {
+            val uri=MapsLinks.navigateTo(next.place.point,state.preferences.transport)
+            launchMaps(context,uri)
         }
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(9.dp))
         OutlinedButton(
-            onClick = {
-                index = (index + 1).coerceAtMost(stops.size)
-                prefs.edit().putInt(key, index).apply()
+            onClick={
+                markVisited(next)
+                index=(index+1).coerceAtMost(stops.size)
+                prefs.edit().putInt(key,index).apply()
             },
-            modifier=Modifier.fillMaxWidth().height(52.dp),
-            shape=RoundedCornerShape(18.dp)
-        ) { Text("MARK VISITED →") }
-    } else if (stops.isNotEmpty()) {
-        BigTitle("Trip complete.")
-        Text("Every planned stop is marked visited.", color=RoloamMuted)
-    }
-    if (index > 0) {
+            modifier=Modifier.fillMaxWidth().height(50.dp),
+            enabled=!state.replacingPlace,
+            shape=RoundedCornerShape(16.dp)
+        ) {Text("I VISITED THIS ✓")}
         Spacer(Modifier.height(10.dp))
-        TextButton(onClick = {
-            index = (index - 1).coerceAtLeast(0)
-            prefs.edit().putInt(key, index).apply()
-        }) { Text("UNDO LAST STOP") }
+        TextButton(
+            onClick={replacement(next)},
+            enabled=!state.replacingPlace,
+            modifier=Modifier.fillMaxWidth()
+        ) {
+            Text(if(state.replacingPlace) "LOOKING FOR A FRESH STOP…" else "BEEN HERE BEFORE? SUGGEST ANOTHER ↻")
+        }
+    } else {
+        BigTitle("Keep roaming.")
+        Text("You've finished this itinerary, not the app. Discover a new destination whenever you're ready.",
+            color=RoloamMuted,lineHeight=22.sp)
+        Spacer(Modifier.height(16.dp))
+        PrimaryButton("Discover another trip") {discoverAnotherTrip()}
+    }
+    state.error?.let {
+        Text(it,color=MaterialTheme.colorScheme.error,fontSize=12.sp,
+            modifier=Modifier.padding(top=10.dp))
+        TextButton(onClick=discoverAnotherTrip) {Text("TRY A DIFFERENT DESTINATION →")}
+    }
+    if(index>0) {
+        Spacer(Modifier.height(9.dp))
+        TextButton(onClick={
+            index=(index-1).coerceAtLeast(0)
+            stops.getOrNull(index)?.let(unmarkVisited)
+            prefs.edit().putInt(key,index).apply()
+        }) {Text("UNDO LAST VISIT")}
     }
     Spacer(Modifier.weight(1f))
 }
