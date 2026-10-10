@@ -1,5 +1,16 @@
 # Roloam changelog
 
+## 0.8.0-beta — Keep roaming
+
+- Recognizable moving train, bike, car and pedestrian symbols replace the rough drawn icons.
+- Compact Home dashboard highlights one next step, progress and fast navigation rather than a wall of controls.
+- Detailed map stop/hostel cards with map coordinates, category, and exact-pin/directions links.
+- Google Maps links now use exact OpenStreetMap coordinates instead of an ambiguous name lookup.
+- Mark a place as already visited and ask for a fresh nearby POI without throwing away the trip.
+- Visited places are remembered across trips and filtered from future suggestions.
+- Find a different destination while keeping the current accepted trip until a new one is accepted.
+- More guidance and fallback choices when local discovery has no fresh mapped places.
+
 ## 0.7.0-beta — Journey dashboard and map discovery
 
 - Show release notes for every missed beta version before downloading an update.

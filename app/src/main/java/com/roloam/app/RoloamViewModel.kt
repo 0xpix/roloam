@@ -7,6 +7,7 @@ import com.roloam.app.data.LocationRepository
 import com.roloam.app.data.Origin
 import com.roloam.app.data.TripRepository
 import com.roloam.app.data.TripStore
+import com.roloam.app.data.VisitedPlaces
 import com.roloam.app.model.*
 import com.roloam.app.update.BetaUpdate
 import com.roloam.app.update.BetaUpdateManager
@@ -24,6 +25,7 @@ data class UiState(
     val preferences: TripPreferences = TripPreferences(),
     val origin: Origin = Origin("Heidelberg", GeoPoint(49.3988, 8.6724), true),
     val rolling: Boolean = false,
+    val replacingPlace: Boolean = false,
     val trip: TripPlan? = null,
     val savedTrip: TripPlan? = null,
     val savedTripPreferences: TripPreferences? = null,
@@ -40,6 +42,7 @@ class RoloamViewModel(app: Application) : AndroidViewModel(app) {
     private val location = LocationRepository(app)
     private val trips = TripRepository(app)
     private val tripStore = TripStore(app)
+    private val visitedPlaces = VisitedPlaces(app)
     private val updates = BetaUpdateManager(app)
     private val prefsStore = app.getSharedPreferences("roloam", 0)
     private val acceptedTrip = tripStore.load()
@@ -96,6 +99,50 @@ class RoloamViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 .onFailure { t ->
                     _state.value = _state.value.copy(rolling = false, error = t.message ?: "Could not build a trip")
+                }
+        }
+    }
+
+    /** Try another destination without destroying the accepted journey first. */
+    fun discoverAnotherTrip() = roll()
+
+    /** Record an actual visit; rerolls will avoid suggesting this stop again. */
+    fun markVisited(stop: TripStop) {
+        visitedPlaces.mark(stop.place)
+    }
+
+    fun unmarkVisited(stop: TripStop) {
+        visitedPlaces.unmark(stop.place)
+    }
+
+    /** Already explored this stop? Keep the trip but find a new local POI. */
+    fun suggestReplacement(stop: TripStop) {
+        if (_state.value.replacingPlace) return
+        val plan = _state.value.savedTrip ?: _state.value.trip ?: return
+        val preferences = _state.value.savedTripPreferences ?: _state.value.preferences
+        visitedPlaces.mark(stop.place)
+        viewModelScope.launch {
+            _state.value = _state.value.copy(replacingPlace = true, error = null)
+            runCatching { trips.replaceStop(plan, stop, preferences) }
+                .onSuccess { updated ->
+                    if (updated == null) {
+                        _state.value = _state.value.copy(
+                            replacingPlace = false,
+                            error = "No new mapped places nearby. Try another destination instead."
+                        )
+                    } else {
+                        tripStore.save(updated, preferences)
+                        _state.value = _state.value.copy(
+                            replacingPlace = false, trip = updated,
+                            savedTrip = updated, savedTripPreferences = preferences,
+                            selectedStop = null, error = null
+                        )
+                    }
+                }.onFailure { problem ->
+                    _state.value = _state.value.copy(
+                        replacingPlace = false,
+                        error = problem.message ?: "Could not find another place nearby."
+                    )
                 }
         }
     }
