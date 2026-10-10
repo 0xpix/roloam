@@ -18,7 +18,7 @@ class RoloamApplication : Application() {
         super.onCreate()
         // Identify the app to OpenStreetMap tile servers and persist osmdroid's map cache.
         Configuration.getInstance().load(this, getSharedPreferences("osmdroid", MODE_PRIVATE))
-        Configuration.getInstance().userAgentValue = "Roloam/0.5 (https://github.com/0xpix/roloam)"
+        Configuration.getInstance().userAgentValue = "Roloam/0.6.1 (https://github.com/0xpix/roloam)"
     }
 }
 

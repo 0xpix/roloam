@@ -1,5 +1,15 @@
 # Roloam changelog
 
+## 0.6.1-beta — Embedded map containment fix
+
+- Hard-clip OSMDroid's canvas and its Compose container to stop the map bleeding over headers and controls during zoom and pan.
+- Capture native map gestures so dragging the map does not move its surrounding page.
+- Initialize the map at the actual destination instead of (0, 0), and fit markers after the map's first measured layout.
+- Stop route-loading updates from forcibly snapping an already-interacted map viewport.
+- Replace the gray checkerboard loading grid with a uniform background while OpenStreetMap tiles arrive.
+- Provide an explicit Fit Trip to Map action to recover the viewport without reopening the page.
+
+
 ## 0.6.0-beta — Continue the journey
 
 - Saved accepted trips and their transport/style preferences persist on-device and can be resumed from Home after restarting the app.

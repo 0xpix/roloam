@@ -1,9 +1,18 @@
 package com.roloam.app.ui
 
 import android.content.Intent
+import android.content.Context
+import android.graphics.Canvas
+import android.graphics.Color
+import android.view.MotionEvent
+import androidx.core.view.doOnLayout
 import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -31,6 +40,36 @@ import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
 
+/**
+ * Native hard clipping matters for OSMDroid: tile canvas and marker overlays
+ * must never draw across adjacent Compose content, even during pinch-zoom.
+ */
+private class ClippedInteractiveMapView(context: Context) : MapView(context) {
+    override fun draw(canvas: Canvas) {
+        val save = canvas.save()
+        canvas.clipRect(0, 0, width, height)
+        try {
+            super.draw(canvas)
+        } finally {
+            canvas.restoreToCount(save)
+        }
+    }
+
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        // Keep pan, pinch, and flings within the map instead of passing
+        // them to a surrounding page / navigation gesture container.
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN,
+            MotionEvent.ACTION_POINTER_DOWN,
+            MotionEvent.ACTION_MOVE -> parent?.requestDisallowInterceptTouchEvent(true)
+            MotionEvent.ACTION_UP,
+            MotionEvent.ACTION_CANCEL -> parent?.requestDisallowInterceptTouchEvent(false)
+        }
+        return super.dispatchTouchEvent(event)
+    }
+}
+
+
 private enum class MapMode(val label: String) {
     TODAY("Day 1"),
     STAY("Stay"),
@@ -43,13 +82,22 @@ fun MapScreen(state: UiState, back: () -> Unit) = Page {
     var mode by remember(trip) { mutableStateOf(MapMode.TODAY) }
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val mapView = remember(context) {
-        MapView(context).apply {
+    val mapView = remember(context, trip.generatedAtEpochMs) {
+        ClippedInteractiveMapView(context).apply {
             setTileSource(TileSourceFactory.MAPNIK)
             setMultiTouchControls(true)
             setUseDataConnection(true)
             minZoomLevel = 3.0
+            maxZoomLevel = 19.0
+            // OSMDroid otherwise starts at (0, 0), often displaying unrelated
+            // African map tiles before layout has completed.
             controller.setZoom(11.0)
+            controller.setCenter(OsmPoint(trip.destination.point.lat, trip.destination.point.lon))
+            setBackgroundColor(Color.rgb(30, 31, 28))
+            overlayManager.tilesOverlay.setLoadingLineColor(Color.TRANSPARENT)
+            clipChildren = true
+            clipToPadding = true
+            clipToOutline = true
         }
     }
 
@@ -138,12 +186,13 @@ fun MapScreen(state: UiState, back: () -> Unit) = Page {
             }
         }
     }
-    val cameraKey = trip.generatedAtEpochMs.toString() + ":" + mode.name
+    var refitCount by remember(trip.generatedAtEpochMs, mode) { mutableIntStateOf(0) }
+    val cameraKey = trip.generatedAtEpochMs.toString() + ":" + mode.name + ":" + refitCount
     val routeSource = remember(context) { LiveDataSource(Network(context.applicationContext)) }
     var routedLine by remember(cameraKey, state.preferences.transport) {
         mutableStateOf<List<GeoPoint>?>(null)
     }
-    LaunchedEffect(cameraKey, state.preferences.transport) {
+    LaunchedEffect(trip.generatedAtEpochMs, mode, state.preferences.transport) {
         if (state.preferences.transport == TransportMode.TRAIN) {
             routedLine = emptyList()
         } else {
@@ -158,50 +207,79 @@ fun MapScreen(state: UiState, back: () -> Unit) = Page {
             }.getOrDefault(emptyList())
         }
     }
-    AndroidView(
-        modifier = Modifier.fillMaxWidth().weight(1f),
-        factory = { mapView },
-        update = { map ->
-            // Rebuild only for a different trip/mode, not on every Compose recomposition.
-            // Otherwise any attempt to pan or zoom immediately snaps back.
-            val previousRender = map.tag as? Pair<*, *>
-            val renderKey = cameraKey to (routedLine?.size ?: -1)
-            if (previousRender != renderKey) {
-                val reposition = previousRender?.first != cameraKey
-                map.tag = renderKey
-                map.overlays.clear()
-                val points = pointData.map { (point, _) -> OsmPoint(point.lat, point.lon) }
-                val route = routedLine.orEmpty().map { OsmPoint(it.lat, it.lon) }
-                // No invented straight road route: when routing fails, show pins only.
-                if (route.size > 1) {
-                    map.overlays.add(Polyline().apply {
-                        setPoints(route)
-                        outlinePaint.color = android.graphics.Color.rgb(80, 110, 91)
-                        outlinePaint.strokeWidth = 5f
-                    })
-                }
-                pointData.forEach { (point, label) ->
-                    map.overlays.add(Marker(map).apply {
-                        position = OsmPoint(point.lat, point.lon)
-                        title = label
-                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                    })
-                }
-                if (reposition) map.post {
-                    if (map.tag == renderKey) {
-                        if (points.size == 1) {
-                            map.controller.setZoom(13.0)
-                            map.controller.setCenter(points.first())
-                        } else if (points.isNotEmpty()) {
-                            map.zoomToBoundingBox(org.osmdroid.util.BoundingBox.fromGeoPoints(points), true, 72)
+    // Fixed native frame + Compose clip: the entire MapView stays contained.
+    // In particular, zoom/pan changes only OSMDroid's viewport.
+    val mapShape = RoundedCornerShape(16.dp)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .weight(1f)
+            .clip(mapShape)
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, RoloamMuted.copy(alpha = .22f), mapShape)
+    ) {
+        AndroidView(
+            modifier = Modifier.fillMaxSize().clipToBounds(),
+            factory = { mapView },
+            update = { map ->
+                val previousRender = map.tag as? Pair<*, *>
+                val renderKey = cameraKey to (routedLine?.size ?: -1)
+                if (previousRender != renderKey) {
+                    val reposition = previousRender?.first != cameraKey
+                    map.tag = renderKey
+                    map.overlays.clear()
+                    val points = pointData.map { (point, _) -> OsmPoint(point.lat, point.lon) }
+                    val route = routedLine.orEmpty().map { OsmPoint(it.lat, it.lon) }
+                    if (route.size > 1) {
+                        map.overlays.add(Polyline().apply {
+                            setPoints(route)
+                            outlinePaint.color = Color.rgb(80, 110, 91)
+                            outlinePaint.strokeWidth = 5f
+                        })
+                    }
+                    pointData.forEach { (point, label) ->
+                        map.overlays.add(Marker(map).apply {
+                            position = OsmPoint(point.lat, point.lon)
+                            title = label
+                            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                        })
+                    }
+                    if (reposition) {
+                        // Immediately move off OSMDroid's (0,0) default; then fit
+                        // only after a real, non-zero AndroidView layout.
+                        val focus = points.getOrNull(1) ?: points.firstOrNull()
+                        if (focus != null) {
+                            map.controller.setCenter(focus)
+                            map.controller.setZoom(11.0)
+                        }
+                        map.doOnLayout {
+                            if ((map.tag as? Pair<*, *>)?.first == cameraKey) {
+                                if (points.size == 1) {
+                                    map.controller.setCenter(points[0])
+                                    map.controller.setZoom(13.0)
+                                } else if (points.size > 1 && map.width > 0 && map.height > 0) {
+                                    map.zoomToBoundingBox(
+                                        org.osmdroid.util.BoundingBox.fromGeoPoints(points),
+                                        false,
+                                        (48 * map.resources.displayMetrics.density).toInt()
+                                    )
+                                }
+                            }
+                            map.invalidate()
                         }
                     }
                     map.invalidate()
                 }
-                else map.invalidate()
             }
-        }
-    )
+        )
+    }
+
+    Spacer(Modifier.height(8.dp))
+    OutlinedButton(
+        onClick = { refitCount++ },
+        modifier = Modifier.fillMaxWidth().height(38.dp),
+        shape = RoundedCornerShape(12.dp)
+    ) { Text("FIT TRIP TO MAP", fontSize = 11.sp) }
 
     Spacer(Modifier.height(10.dp))
     Button(
@@ -220,8 +298,8 @@ fun MapScreen(state: UiState, back: () -> Unit) = Page {
                 "Train: stops are shown as pins; use Maps for live transit navigation."
             routedLine == null -> "Loading road or path geometry…"
             routedLine!!.size > 1 ->
-                "Map shows a routed path and stops. Check directions for live navigation."
-            else -> "Routing unavailable. Showing stops only; open Maps for directions."
+                "Map shows the routed path and stops. Check Maps for navigation."
+            else -> "Routing unavailable: stops shown as pins. Use Maps for directions."
         },
         fontSize = 10.sp,
         color = RoloamMuted,
