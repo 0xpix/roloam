@@ -138,10 +138,17 @@ class TripRepository(context: Context) {
         val rawStays = staysDeferred.await()
         val weather = weatherDeferred.await()
 
-        val rankedPlaces = rankPlaces(
+        val unseenPlaces = rankPlaces(
             places.filterNot { history.contains(it) }, chosen.point, prefs
-        ).ifEmpty {
-            listOf(Place(-1, chosen.name + " city centre", chosen.point, "city"))
+        )
+        if (places.isNotEmpty() && unseenPlaces.isEmpty()) {
+            error("You've already explored the mapped places around " + chosen.name +
+                ". Try another destination for fresh discoveries.")
+        }
+        // A centre pin is only a clearly labeled fallback when the remote data
+        // source returns nothing; it must never masquerade as a fresh attraction.
+        val rankedPlaces = unseenPlaces.ifEmpty {
+            listOf(Place(-1, chosen.name + " city centre (fallback)", chosen.point, "city"))
         }
 
         val itinerary = buildItinerary(rankedPlaces, chosen, days, startDate, weather)
