@@ -2,7 +2,9 @@ package com.roloam.app.ui
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -22,199 +24,128 @@ fun SettingsScreen(
     downloadUpdate: () -> Unit,
     installUpdate: () -> Unit
 ) = Page {
-    Row(
-        Modifier.fillMaxWidth(),
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        RoloamWordmark()
-        Text("BETA", fontSize = 10.sp, color = RoloamMuted, letterSpacing = 1.4.sp)
-    }
-    Spacer(Modifier.height(14.dp))
-
-    Text(
-        "‹  Settings.",
-        fontSize = 30.sp,
-        fontWeight = FontWeight.Black,
-        modifier = Modifier.clickable { back() }
-    )
-    Text(
-        "Keep it small.",
-        color = RoloamMuted,
-        modifier = Modifier.padding(top = 4.dp)
-    )
-
-    Spacer(Modifier.height(28.dp))
-
-    Text(
-        "TRIP",
-        fontSize = 11.sp,
-        fontWeight = FontWeight.Bold,
-        color = RoloamMuted
-    )
-    Spacer(Modifier.height(8.dp))
-
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { open(Screen.PREFERENCES) },
-        shape = RoundedCornerShape(16.dp),
-        tonalElevation = 1.dp
-    ) {
-        Row(
-            Modifier.padding(horizontal = 16.dp, vertical = 18.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        RoloamSectionBar("SETTINGS")
+        Spacer(Modifier.height(17.dp))
+        Text(
+            "‹  Settings.",
+            fontSize=30.sp, fontWeight=FontWeight.Black,
+            modifier=Modifier.clickable { back() }
+        )
+        Text("The controls that matter.", color=RoloamMuted)
+        Spacer(Modifier.height(22.dp))
+        Text("TRIP", fontSize=11.sp, fontWeight=FontWeight.Bold, color=RoloamMuted)
+        Spacer(Modifier.height(8.dp))
+        Surface(
+            modifier=Modifier.fillMaxWidth().clickable { open(Screen.PREFERENCES) },
+            shape=RoundedCornerShape(16.dp), tonalElevation=1.dp
         ) {
-            Column {
-                Text("Trip preferences", fontWeight = FontWeight.Bold)
-                Text(
-                    "Duration · transport · stay · style",
-                    fontSize = 11.sp,
-                    color = RoloamMuted
-                )
-            }
-            Text("→", color = RoloamMuted)
-        }
-    }
-
-    Spacer(Modifier.height(28.dp))
-
-    Text(
-        "APP",
-        fontSize = 11.sp,
-        fontWeight = FontWeight.Bold,
-        color = RoloamMuted
-    )
-    Spacer(Modifier.height(8.dp))
-
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        tonalElevation = 1.dp
-    ) {
-        Column(Modifier.padding(16.dp)) {
             Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                Modifier.padding(16.dp),
+                horizontalArrangement=Arrangement.SpaceBetween
             ) {
                 Column {
-                    Text("Roloam.", fontWeight = FontWeight.Black)
-                    Text("Current version", fontSize = 10.sp, color = RoloamMuted)
+                    Text("Trip preferences", fontWeight=FontWeight.Bold)
+                    Text("Duration · transport · stay · style", fontSize=11.sp, color=RoloamMuted)
                 }
-                Text(
-                    BuildConfig.VERSION_NAME,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-            }
-
-            if (BuildConfig.BETA_CHANNEL) {
-                Spacer(Modifier.height(20.dp))
-                HorizontalDivider(color = RoloamMuted.copy(alpha = .18f))
-                Spacer(Modifier.height(20.dp))
-
-                Text("GitHub beta updates", fontWeight = FontWeight.Bold)
-                Text(
-                    "Checks only prerelease APKs published by 0xpix/roloam.",
-                    fontSize = 11.sp,
-                    color = RoloamMuted,
-                    lineHeight = 16.sp,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-
-                state.updateMessage?.let {
-                    Text(
-                        it,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(top = 14.dp)
-                    )
-                }
-
-                val progress = state.updateDownloadProgress
-                if (progress != null && progress in 0..99) {
-                    Spacer(Modifier.height(12.dp))
-                    LinearProgressIndicator(
-                        progress = { progress / 100f },
-                        modifier = Modifier.fillMaxWidth(),
-                        color = RoloamAccent
-                    )
-                    Text(
-                        "$progress%",
-                        fontSize = 10.sp,
-                        color = RoloamMuted,
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
-                }
-
-                Spacer(Modifier.height(14.dp))
-
-                when {
-                    state.downloadedUpdate != null -> {
-                        Button(
-                            onClick = installUpdate,
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary,
-                                contentColor = MaterialTheme.colorScheme.onPrimary
-                            )
-                        ) {
-                            Text("INSTALL UPDATE →")
-                        }
-                    }
-
-                    state.updateAvailable != null -> {
-                        Button(
-                            onClick = downloadUpdate,
-                            enabled = progress == null,
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary,
-                                contentColor = MaterialTheme.colorScheme.onPrimary
-                            )
-                        ) {
-                            Text("DOWNLOAD " + state.updateAvailable.version.uppercase() + " →")
-                        }
-                    }
-
-                    else -> {
-                        OutlinedButton(
-                            onClick = checkUpdate,
-                            enabled = !state.updateChecking,
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(14.dp)
-                        ) {
-                            Text(if (state.updateChecking) "CHECKING…" else "CHECK FOR UPDATE")
-                        }
-                    }
-                }
-
-                Text(
-                    "Beta channel only · APK signature is verified before Android opens the installer.",
-                    fontSize = 10.sp,
-                    lineHeight = 14.sp,
-                    color = RoloamMuted,
-                    modifier = Modifier.padding(top = 12.dp)
-                )
-            } else {
-                Text(
-                    "Production builds do not use the GitHub beta updater.",
-                    fontSize = 11.sp,
-                    color = RoloamMuted,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
+                Text("→", color=RoloamMuted)
             }
         }
+
+        Spacer(Modifier.height(25.dp))
+        Text("APP", fontSize=11.sp, fontWeight=FontWeight.Bold, color=RoloamMuted)
+        Spacer(Modifier.height(8.dp))
+        Surface(
+            modifier=Modifier.fillMaxWidth(),
+            shape=RoundedCornerShape(16.dp), tonalElevation=1.dp
+        ) {
+            Column(Modifier.padding(16.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.SpaceBetween) {
+                    Column {
+                        Text("Roloam", fontWeight=FontWeight.Black)
+                        Text("Installed version", fontSize=11.sp, color=RoloamMuted)
+                    }
+                    Text(BuildConfig.VERSION_NAME, fontWeight=FontWeight.Bold, fontSize=12.sp)
+                }
+                if (BuildConfig.BETA_CHANNEL) {
+                    Spacer(Modifier.height(17.dp))
+                    HorizontalDivider(color=RoloamMuted.copy(alpha=.17f))
+                    Spacer(Modifier.height(17.dp))
+                    Text("Beta updates", fontWeight=FontWeight.Bold)
+                    Text("Signed APKs from the official Roloam GitHub releases.",
+                        fontSize=11.sp, color=RoloamMuted)
+
+                    state.updateMessage?.let {
+                        Text(it, fontSize=12.sp, modifier=Modifier.padding(top=13.dp))
+                    }
+
+                    val update = state.updateAvailable
+                    if (update != null) {
+                        Spacer(Modifier.height(18.dp))
+                        Text(
+                            "WHAT'S NEW · " + BuildConfig.VERSION_NAME + " → " + update.version,
+                            color=RoloamAccent, fontSize=10.sp,
+                            fontWeight=FontWeight.Bold, letterSpacing=.8.sp
+                        )
+                        Spacer(Modifier.height(9.dp))
+                        val notes = update.notes.orEmpty()
+                        if(notes.isNotBlank()) {
+                            Column(
+                                Modifier.fillMaxWidth()
+                                    .heightIn(max=250.dp)
+                                    .verticalScroll(rememberScrollState())
+                            ) {
+                                Text(notes, fontSize=12.sp, lineHeight=19.sp)
+                            }
+                        } else {
+                            Text("No release notes available.", color=RoloamMuted, fontSize=12.sp)
+                        }
+                        Spacer(Modifier.height(12.dp))
+                    }
+
+                    val progress = state.updateDownloadProgress
+                    if (progress != null && progress in 0..99) {
+                        LinearProgressIndicator(
+                            progress={progress / 100f},
+                            modifier=Modifier.fillMaxWidth(),
+                            color=RoloamAccent
+                        )
+                        Text("$progress%", fontSize=11.sp, color=RoloamMuted)
+                    }
+                    Spacer(Modifier.height(13.dp))
+                    when {
+                        state.downloadedUpdate != null -> {
+                            Button(
+                                onClick=installUpdate, modifier=Modifier.fillMaxWidth(),
+                                shape=RoundedCornerShape(14.dp)
+                            ) { Text("INSTALL UPDATE →") }
+                        }
+                        update != null -> {
+                            Button(
+                                onClick=downloadUpdate, enabled=progress==null,
+                                modifier=Modifier.fillMaxWidth(),
+                                shape=RoundedCornerShape(14.dp)
+                            ) { Text("DOWNLOAD " + update.version.uppercase() + " →") }
+                        }
+                        else -> {
+                            OutlinedButton(
+                                onClick=checkUpdate, enabled=!state.updateChecking,
+                                modifier=Modifier.fillMaxWidth(),
+                                shape=RoundedCornerShape(14.dp)
+                            ) { Text(if(state.updateChecking) "CHECKING…" else "CHECK FOR UPDATE") }
+                        }
+                    }
+                    Text(
+                        "APK package and signing certificate are verified before installation.",
+                        fontSize=10.sp, color=RoloamMuted,
+                        modifier=Modifier.padding(top=12.dp)
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(23.dp))
+        Text("No account · no feed · no background tracking.",
+            fontSize=10.sp, color=RoloamMuted)
+        Spacer(Modifier.height(20.dp))
     }
-
-    Spacer(Modifier.weight(1f))
-
-    Text(
-        "No account · no feed · no background tracking.",
-        fontSize = 10.sp,
-        color = RoloamMuted,
-        modifier = Modifier.padding(bottom = 10.dp)
-    )
 }

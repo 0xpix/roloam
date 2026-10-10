@@ -42,10 +42,13 @@ class RoloamViewModel(app: Application) : AndroidViewModel(app) {
     private val tripStore = TripStore(app)
     private val updates = BetaUpdateManager(app)
     private val prefsStore = app.getSharedPreferences("roloam", 0)
+    private val acceptedTrip = tripStore.load()
+    private val acceptedPreferences = tripStore.loadPreferences()
     private val _state = MutableStateFlow(UiState(
-        preferences = loadPreferences(),
-        savedTrip = tripStore.load(),
-        savedTripPreferences = tripStore.loadPreferences()
+        preferences = acceptedPreferences ?: loadPreferences(),
+        trip = acceptedTrip,
+        savedTrip = acceptedTrip,
+        savedTripPreferences = acceptedPreferences
     ))
     val state: StateFlow<UiState> = _state.asStateFlow()
 
@@ -102,7 +105,7 @@ class RoloamViewModel(app: Application) : AndroidViewModel(app) {
         val preferences = _state.value.preferences
         tripStore.save(plan, preferences)
         _state.value = _state.value.copy(
-            savedTrip = plan, savedTripPreferences = preferences, screen = Screen.PLAN, error = null
+            savedTrip = plan, savedTripPreferences = preferences, screen = Screen.HOME, error = null
         )
     }
 
@@ -113,6 +116,31 @@ class RoloamViewModel(app: Application) : AndroidViewModel(app) {
             preferences = _state.value.savedTripPreferences ?: _state.value.preferences,
             screen = Screen.PLAN, error = null
         )
+    }
+
+    /** Cancel only the accepted journey; don't delete global trip preferences. */
+    fun cancelTrip() {
+        val previousId = _state.value.savedTrip?.generatedAtEpochMs
+        tripStore.clear()
+        if (previousId != null) {
+            getApplication<Application>()
+                .getSharedPreferences("roloam_progress", 0)
+                .edit().remove("visited_$previousId").apply()
+            getApplication<Application>()
+                .getSharedPreferences("roloam_packing", 0)
+                .edit().remove("packed_$previousId").apply()
+        }
+        _state.value = _state.value.copy(
+            savedTrip = null, savedTripPreferences = null, trip = null,
+            selectedStop = null, screen = Screen.HOME, error = null
+        )
+    }
+
+    /** Android Back is triggered by the system's edge swipe from either side. */
+    fun goHome() {
+        if (_state.value.screen != Screen.HOME) {
+            _state.value = _state.value.copy(screen = Screen.HOME, selectedStop = null, error = null)
+        }
     }
 
     fun checkForBetaUpdate() {

@@ -1,5 +1,14 @@
 # Roloam changelog
 
+## 0.7.0-beta — Journey dashboard and map discovery
+
+- Show release notes for every missed beta version before downloading an update.
+- Android left/right edge Back gesture returns directly to Home.
+- Accepting a trip activates a Home dashboard with upcoming stops, visit progress, weather, packing and accommodation.
+- Cancel a trip after confirmation to restore the original Home and clear saved trip progress.
+- Itinerary day maps display readable, numbered stop markers and local routes, with a per-day view and clear empty states.
+- Replace the decorative header logo with a functional Home navigation control and refresh the launcher icon.
+
 ## 0.6.1-beta — Embedded map containment fix
 
 - Hard-clip OSMDroid's canvas and its Compose container to stop the map bleeding over headers and controls during zoom and pan.

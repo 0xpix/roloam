@@ -141,7 +141,11 @@ private fun PrimaryButton(text:String, enabled:Boolean=true, onClick:()->Unit) {
 }
 
 @Composable
-fun HomeScreen(state: UiState, open:(Screen)->Unit, roll:()->Unit, resume:()->Unit) = Page {
+fun HomeScreen(state: UiState, open:(Screen)->Unit, roll:()->Unit, resume:()->Unit, cancelTrip:()->Unit) = Page {
+    if (state.savedTrip != null) {
+        ActiveTripHome(state, open, resume, cancelTrip)
+        return@Page
+    }
     Row(
         Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -201,17 +205,6 @@ fun HomeScreen(state: UiState, open:(Screen)->Unit, roll:()->Unit, resume:()->Un
             Text(it, color=MaterialTheme.colorScheme.error, modifier=Modifier.padding(bottom=12.dp))
         }
         PrimaryButton("Roll a trip", onClick=roll)
-        if (state.savedTrip != null) {
-            Spacer(Modifier.height(8.dp))
-            OutlinedButton(
-                onClick=resume,
-                modifier=Modifier.fillMaxWidth().height(42.dp),
-                shape=RoundedCornerShape(15.dp)
-            ) {
-                Text("RESUME · " + state.savedTrip.destination.name.uppercase() + " →",
-                    fontSize=11.sp, maxLines=1, overflow=TextOverflow.Ellipsis)
-            }
-        }
         Spacer(Modifier.height(10.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(10.dp)) {
             TinyChip("⌖  " + state.origin.label, Modifier.weight(1f)) { }
@@ -223,6 +216,111 @@ fun HomeScreen(state: UiState, open:(Screen)->Unit, roll:()->Unit, resume:()->Un
         Spacer(Modifier.height(12.dp))
     }
 }
+
+@Composable
+private fun ColumnScope.ActiveTripHome(state: UiState, open:(Screen)->Unit, resume:()->Unit, cancelTrip:()->Unit) {
+    val trip = state.savedTrip ?: return
+    val context = LocalContext.current
+    val progressPrefs = remember(context) {
+        context.getSharedPreferences("roloam_progress", android.content.Context.MODE_PRIVATE)
+    }
+    val packedPrefs = remember(context) {
+        context.getSharedPreferences("roloam_packing", android.content.Context.MODE_PRIVATE)
+    }
+    val allStops = remember(trip) { trip.allStops() }
+    // Refresh progress whenever Home is entered/recomposed following a screen change.
+    val complete = progressPrefs.getInt("visited_" + trip.generatedAtEpochMs, 0).coerceIn(0, allStops.size)
+    val packed = packedPrefs.getStringSet("packed_" + trip.generatedAtEpochMs, emptySet()).orEmpty().size
+    val upcoming = allStops.getOrNull(complete)
+    var confirmCancel by remember(trip.generatedAtEpochMs) { mutableStateOf(false) }
+
+    RoloamSectionBar("YOUR JOURNEY")
+    Spacer(Modifier.height(20.dp))
+    Text("TRIP IN PROGRESS", fontSize=11.sp, letterSpacing=1.5.sp, color=RoloamAccent, fontWeight=FontWeight.Bold)
+    Spacer(Modifier.height(8.dp))
+    BigTitle(trip.destination.name)
+    Text(
+        trip.startDate.format(DateTimeFormatter.ofPattern("EEE d MMM")) +
+            " · " + trip.days + if (trip.days == 1) " day" else " days",
+        fontSize=13.sp, color=RoloamMuted
+    )
+    JourneyHeader(state.savedTripPreferences?.transport ?: state.preferences.transport, false)
+    Spacer(Modifier.height(10.dp))
+
+    Surface(
+        modifier=Modifier.fillMaxWidth(),
+        shape=RoundedCornerShape(18.dp),
+        color=MaterialTheme.colorScheme.surfaceVariant.copy(alpha=.18f)
+    ) {
+        Column(Modifier.padding(17.dp)) {
+            Text("UP NEXT", color=RoloamAccent, fontSize=10.sp, fontWeight=FontWeight.Bold, letterSpacing=1.3.sp)
+            Spacer(Modifier.height(8.dp))
+            Text(upcoming?.place?.name ?: "All planned stops completed",
+                fontSize=19.sp, fontWeight=FontWeight.Black, maxLines=2, overflow=TextOverflow.Ellipsis)
+            Text(
+                upcoming?.let { it.time + " · " + it.durationMinutes + " min" } ?: "Enjoy the rest of your trip.",
+                fontSize=11.sp, color=RoloamMuted
+            )
+            Spacer(Modifier.height(15.dp))
+            LinearProgressIndicator(
+                progress = { if (allStops.isEmpty()) 0f else complete.toFloat() / allStops.size },
+                modifier=Modifier.fillMaxWidth(),
+                color=RoloamAccent
+            )
+            Spacer(Modifier.height(7.dp))
+            Text("$complete / ${allStops.size} stops visited", fontSize=11.sp, color=RoloamMuted)
+        }
+    }
+    Spacer(Modifier.height(12.dp))
+
+    Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(9.dp)) {
+        DashboardMetric("WEATHER", trip.itinerary.firstOrNull()?.weather?.maxC?.roundToInt()?.let { "$it°C" } ?: "—", Modifier.weight(1f))
+        DashboardMetric("PACKED", "$packed items", Modifier.weight(1f))
+        DashboardMetric("STAY", if (trip.days == 1) "Day trip" else if(trip.stay == null) "Check" else "Found", Modifier.weight(1f))
+    }
+    Spacer(Modifier.weight(1f))
+    PrimaryButton("Continue journey") { open(Screen.NOW) }
+    Spacer(Modifier.height(8.dp))
+    Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+        TinyChip("PLAN", Modifier.weight(1f)) { resume() }
+        TinyChip("MAP", Modifier.weight(1f)) { open(Screen.MAP) }
+        TinyChip("STAY", Modifier.weight(1f)) { open(Screen.STAY) }
+    }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+        TinyChip("PACKING", Modifier.weight(1f)) { open(Screen.PACKING) }
+        TinyChip("SETTINGS", Modifier.weight(1f)) { open(Screen.SETTINGS) }
+    }
+    TextButton(
+        onClick={ confirmCancel = true },
+        modifier=Modifier.fillMaxWidth()
+    ) { Text("CANCEL TRIP", color=RoloamMuted, fontSize=11.sp) }
+
+    if(confirmCancel) {
+        AlertDialog(
+            onDismissRequest={confirmCancel=false},
+            title={Text("Cancel this trip?")},
+            text={Text("This returns to the original Home and clears the saved journey and its progress.")},
+            confirmButton={
+                TextButton(onClick={confirmCancel=false;cancelTrip()}){Text("CANCEL TRIP")}
+            },
+            dismissButton={
+                TextButton(onClick={confirmCancel=false}){Text("KEEP TRIP")}
+            }
+        )
+    }
+}
+
+@Composable
+private fun DashboardMetric(label:String, value:String, modifier:Modifier=Modifier) {
+    Surface(modifier=modifier, shape=RoundedCornerShape(13.dp), border=BorderStroke(1.dp,RoloamMuted.copy(alpha=.2f))) {
+        Column(Modifier.padding(horizontal=10.dp,vertical=13.dp)) {
+            Text(label, fontSize=9.sp, letterSpacing=.6.sp, color=RoloamMuted)
+            Spacer(Modifier.height(6.dp))
+            Text(value, fontSize=13.sp, fontWeight=FontWeight.Bold, maxLines=1, overflow=TextOverflow.Ellipsis)
+        }
+    }
+}
+
 
 @Composable
 private fun TinyChip(text:String, modifier:Modifier=Modifier, onClick:()->Unit) {

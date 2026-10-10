@@ -89,7 +89,12 @@ class BetaUpdateManager(private val context: Context) {
                     BetaUpdate(
                         tag = latest.tag,
                         version = remote,
-                        notes = latest.body,
+                        notes = buildUpdateChangelog(
+                            current, remote,
+                            releases.filter { it.prerelease && !it.draft }.map {
+                                it.tag.removePrefix("v") to it.body
+                            }
+                        ),
                         apkUrl = asset.downloadUrl,
                         apkName = asset.name
                     )
@@ -248,5 +253,30 @@ internal fun isNewerBetaVersion(remote: String, local: String): Boolean {
         a.minor != b.minor -> a.minor > b.minor
         a.patch != b.patch -> a.patch > b.patch
         else -> a.betaRevision > b.betaRevision
+    }
+}
+
+// Collect every missed prerelease, not just the newest, when upgrading across
+// several versions (for example 0.4.1-beta -> 0.7.0-beta).
+internal fun buildUpdateChangelog(
+    current: String,
+    latest: String,
+    releases: List<Pair<String, String?>>
+): String {
+    val pending = releases.filter { (version, _) ->
+        isNewerBetaVersion(version, current) &&
+            !isNewerBetaVersion(version, latest)
+    }.sortedWith(compareBy(
+        { it.first.substringBefore("-").split(".").getOrNull(0)?.toIntOrNull() ?: 0 },
+        { it.first.substringBefore("-").split(".").getOrNull(1)?.toIntOrNull() ?: 0 },
+        { it.first.substringBefore("-").split(".").getOrNull(2)?.toIntOrNull() ?: 0 },
+        { Regex("""beta[.-]?(\\d+)""").find(it.first)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0 }
+    ))
+    if (pending.isEmpty()) return ""
+    return pending.joinToString("\n\n") { (version, body) ->
+        val details = body?.trim().orEmpty().ifBlank {
+            "Detailed notes were not provided for this release."
+        }
+        "v$version\n$details"
     }
 }
