@@ -15,6 +15,7 @@ import kotlin.random.Random
 
 class TripRepository(context: Context) {
     private val source = LiveDataSource(Network(context))
+    private val history = VisitedPlaces(context)
     private val random = Random.Default
     private val discoveryPrefs = context.getSharedPreferences("roloam_discovery", Context.MODE_PRIVATE)
     private val recentDestinations = ArrayDeque(
@@ -137,7 +138,9 @@ class TripRepository(context: Context) {
         val rawStays = staysDeferred.await()
         val weather = weatherDeferred.await()
 
-        val rankedPlaces = rankPlaces(places, chosen.point, prefs).ifEmpty {
+        val rankedPlaces = rankPlaces(
+            places.filterNot { history.contains(it) }, chosen.point, prefs
+        ).ifEmpty {
             listOf(Place(-1, chosen.name + " city centre", chosen.point, "city"))
         }
 
@@ -154,6 +157,49 @@ class TripRepository(context: Context) {
             itinerary = itinerary,
             usedLiveData = liveCities.isNotEmpty() && places.isNotEmpty()
         )
+    }
+
+    /**
+     * Replace one suggested stop in-place without discarding the accepted trip.
+     * Only unused/unvisited live POIs are eligible. Never invent a replacement.
+     */
+    suspend fun replaceStop(plan: TripPlan, target: TripStop, prefs: TripPreferences): TripPlan? {
+        val dayIndex = plan.itinerary.indexOfFirst { day ->
+            day.stops.any { it.place == target.place }
+        }
+        if (dayIndex < 0) return null
+        val stopIndex = plan.itinerary[dayIndex].stops.indexOfFirst { it.place == target.place }
+        if (stopIndex < 0) return null
+
+        val alreadyPlanned = plan.allStops().map { PlaceIdentity.key(it.place) }.toSet()
+        val nearby = runCatching {
+            source.attractions(plan.destination.point, prefs.style.name, 24)
+        }.getOrDefault(emptyList())
+        val candidates = if (nearby.size > 8) nearby else {
+            nearby + runCatching {
+                source.attractions(plan.destination.point, prefs.style.name, 45)
+            }.getOrDefault(emptyList())
+        }
+        val next = rankPlaces(
+            candidates.filter { p ->
+                PlaceIdentity.key(p) !in alreadyPlanned && !history.contains(p)
+            }, plan.destination.point, prefs
+        ).firstOrNull { p ->
+            openingState(
+                p.openingHours, plan.itinerary[dayIndex].date,
+                runCatching { LocalTime.parse(target.time) }.getOrDefault(LocalTime.NOON)
+            ) != OpeningState.CLOSED
+        } ?: return null
+
+        val revised = plan.itinerary.toMutableList()
+        val day = revised[dayIndex]
+        val stops = day.stops.toMutableList()
+        stops[stopIndex] = target.copy(
+            place = next,
+            whyNow = "Fresh alternative near " + plan.destination.name + ". Check opening hours before visiting."
+        )
+        revised[dayIndex] = day.copy(stops = stops)
+        return plan.copy(itinerary = revised)
     }
 
     private fun score(d: Destination, days: Int, prefs: TripPreferences): Double {

@@ -15,6 +15,19 @@ class MapsLinksTest {
         assertTrue(url.contains("48.5%2C7.7"))
     }
 
+    @Test fun exactPlaceDoesNotSendAmbiguousNameToGoogle() {
+        val url = MapsLinks.place("The Hostel", GeoPoint(49.4521, 11.0767))
+        assertTrue(url.contains("49.4521%2C11.0767"))
+        assertTrue(!url.contains("The+Hostel"))
+        assertTrue(!url.contains("The%20Hostel"))
+    }
+
+    @Test fun navigateToUsesExactCoordinates() {
+        val url = MapsLinks.navigateTo(GeoPoint(49.4521, 11.0767), TransportMode.WALK)
+        assertTrue(url.contains("destination=49.4521%2C11.0767"))
+        assertTrue(url.contains("travelmode=walking"))
+    }
+
     @Test fun staySearchUsesDestinationInsteadOfPhoneLocation() {
         val url = MapsLinks.searchStays(Destination("Strasbourg", point = GeoPoint(48.57, 7.75)), true)
         assertTrue(url.contains("Strasbourg"))

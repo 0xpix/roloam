@@ -26,7 +26,20 @@ object MapsLinks {
         return search(kind + " near " + destination.name + " " + coordinates(destination.point))
     }
 
-    fun place(name: String, point: GeoPoint): String = search(name + " " + coordinates(point))
+    // Exact mapped coordinates, not a free-text name which Google may geocode
+    // to an entirely different hostel or street in another city.
+    fun place(name: String, point: GeoPoint): String = search(coordinates(point))
+
+    fun navigateTo(point: GeoPoint, transport: TransportMode): String {
+        val mode = when (transport) {
+            TransportMode.CAR -> "driving"
+            TransportMode.TRAIN -> "transit"
+            TransportMode.BIKE -> "bicycling"
+            TransportMode.WALK -> "walking"
+        }
+        return "https://www.google.com/maps/dir/?api=1&destination=" +
+            encode(coordinates(point)) + "&travelmode=" + mode
+    }
 
     private fun search(query: String): String =
         "https://www.google.com/maps/search/?api=1&query=" + encode(query)
