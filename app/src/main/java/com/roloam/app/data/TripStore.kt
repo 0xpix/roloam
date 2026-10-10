@@ -20,6 +20,10 @@ class TripStore(context: Context) {
             .apply()
     }
 
+    fun clear() {
+        prefs.edit().remove("accepted_trip_json").remove("accepted_preferences_json").apply()
+    }
+
     fun load(): TripPlan? = prefs.getString("accepted_trip_json", null)?.let { json ->
         runCatching { TripCodec.decode(json) }.getOrNull()
     }

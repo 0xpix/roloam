@@ -1,5 +1,6 @@
 package com.roloam.app.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
@@ -23,6 +24,8 @@ val RoloamAccent = Accent
 @Composable
 fun RoloamApp(vm: RoloamViewModel) {
     val state by vm.state.collectAsStateWithLifecycle()
+    // Respect system left/right edge Back gestures, including predictive Back.
+    BackHandler(enabled = state.screen != Screen.HOME) { vm.goHome() }
     MaterialTheme(
         colorScheme = if (isSystemInDarkTheme()) {
             darkColorScheme(
@@ -49,8 +52,9 @@ fun RoloamApp(vm: RoloamViewModel) {
             labelLarge = MaterialTheme.typography.labelLarge.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
         )
     ) {
+        CompositionLocalProvider(LocalGoHome provides vm::goHome) {
         when (state.screen) {
-            Screen.HOME -> HomeScreen(state, vm::open, vm::roll, vm::resumeTrip)
+            Screen.HOME -> HomeScreen(state, vm::open, vm::roll, vm::resumeTrip, vm::cancelTrip)
             Screen.PREFERENCES -> PreferencesScreen(state.preferences, vm::updatePreferences, vm::back)
             Screen.SETTINGS -> SettingsScreen(
                 state = state,
@@ -68,6 +72,7 @@ fun RoloamApp(vm: RoloamViewModel) {
             Screen.NOW -> NowScreen(state, vm::back)
             Screen.WEATHER -> WeatherScreen(state, vm::back)
             Screen.PACKING -> PackingScreen(state, vm::back)
+        }
         }
     }
 }
