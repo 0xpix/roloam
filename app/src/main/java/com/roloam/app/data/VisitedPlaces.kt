@@ -28,7 +28,7 @@ class VisitedPlaces(context: Context) {
     }
 
     fun mark(place: Place) {
-        val updated = (all() + PlaceIdentity.key(place)).takeLast(500).toSet()
+        val updated = (all() + PlaceIdentity.key(place)).toList().takeLast(500).toSet()
         prefs.edit().putStringSet("known", updated).apply()
     }
 }
