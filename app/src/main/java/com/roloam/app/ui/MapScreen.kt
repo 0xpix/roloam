@@ -145,6 +145,7 @@ private fun makePins(state: UiState, selection: String): List<ItineraryPin> {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MapScreen(state: UiState, back: () -> Unit, replaceStop: (TripStop)->Unit) = Page {
     val trip = state.trip ?: return@Page
