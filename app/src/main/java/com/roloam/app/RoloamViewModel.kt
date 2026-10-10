@@ -42,10 +42,13 @@ class RoloamViewModel(app: Application) : AndroidViewModel(app) {
     private val tripStore = TripStore(app)
     private val updates = BetaUpdateManager(app)
     private val prefsStore = app.getSharedPreferences("roloam", 0)
+    private val acceptedTrip = tripStore.load()
+    private val acceptedPreferences = tripStore.loadPreferences()
     private val _state = MutableStateFlow(UiState(
-        preferences = loadPreferences(),
-        savedTrip = tripStore.load(),
-        savedTripPreferences = tripStore.loadPreferences()
+        preferences = acceptedPreferences ?: loadPreferences(),
+        trip = acceptedTrip,
+        savedTrip = acceptedTrip,
+        savedTripPreferences = acceptedPreferences
     ))
     val state: StateFlow<UiState> = _state.asStateFlow()
 
