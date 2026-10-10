@@ -40,6 +40,8 @@ import com.roloam.app.data.LiveDataSource
 import com.roloam.app.data.MapsLinks
 import com.roloam.app.data.Network
 import com.roloam.app.model.GeoPoint
+import com.roloam.app.model.TripStop
+import com.roloam.app.model.Stay
 import com.roloam.app.model.TransportMode
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint as OsmPoint
@@ -71,7 +73,9 @@ private data class ItineraryPin(
     val point: GeoPoint,
     val title: String,
     val kind: PinKind,
-    val badge: String
+    val badge: String,
+    val stop: TripStop? = null,
+    val stay: Stay? = null
 )
 
 /** Stop pins are custom-drawn at screen density, not the tiny default OSM marker. */
@@ -109,9 +113,9 @@ private fun makePins(state: UiState, selection: String): List<ItineraryPin> {
     val trip = state.trip ?: return emptyList()
     return buildList {
         if (selection == "STAY") {
-            trip.stay?.let { add(ItineraryPin(it.point, "Stay · " + it.name, PinKind.STAY, "S")) }
+            trip.stay?.let { add(ItineraryPin(it.point, "Stay · " + it.name, PinKind.STAY, "S", stay=it)) }
             trip.alternativeStays.take(4).forEach {
-                add(ItineraryPin(it.point, "Alternative · " + it.name, PinKind.STAY, "S"))
+                add(ItineraryPin(it.point, "Alternative · " + it.name, PinKind.STAY, "S", stay=it))
             }
             if (isEmpty()) {
                 add(ItineraryPin(trip.destination.point, trip.destination.name, PinKind.DESTINATION, "D"))
@@ -128,24 +132,26 @@ private fun makePins(state: UiState, selection: String): List<ItineraryPin> {
                             stop.place.point,
                             "Day ${day+1}, stop ${index+1} · " + stop.place.name,
                             PinKind.STOP,
-                            if (selection == "ALL") "${day+1}.${index+1}" else "${index+1}"
+                            if (selection == "ALL") "${day+1}.${index+1}" else "${index+1}",
+                            stop=stop
                         ))
                     }
                 }
             }
             if (selection == "ALL") trip.stay?.let {
-                add(ItineraryPin(it.point, "Stay · " + it.name, PinKind.STAY, "S"))
+                add(ItineraryPin(it.point, "Stay · " + it.name, PinKind.STAY, "S", stay=it))
             }
         }
     }
 }
 
 @Composable
-fun MapScreen(state: UiState, back: () -> Unit) = Page {
+fun MapScreen(state: UiState, back: () -> Unit, replaceStop: (TripStop)->Unit) = Page {
     val trip = state.trip ?: return@Page
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     var selection by remember(trip.generatedAtEpochMs) { mutableStateOf("DAY_0") }
+    var selectedPin by remember(trip.generatedAtEpochMs) { mutableStateOf<ItineraryPin?>(null) }
     var refit by remember(trip.generatedAtEpochMs, selection) { mutableIntStateOf(0) }
     val cameraKey = trip.generatedAtEpochMs.toString() + ":" + selection + ":" + refit
     val pins = remember(trip, selection) { makePins(state, selection) }
@@ -267,6 +273,10 @@ fun MapScreen(state: UiState, back: () -> Unit) = Page {
                             title=pin.title
                             icon=pinDrawable(context, pin.kind, pin.badge)
                             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                            setOnMarkerClickListener { _, _ ->
+                                selectedPin = pin
+                                true
+                            }
                         })
                     }
                     if(fit) {
@@ -294,9 +304,10 @@ fun MapScreen(state: UiState, back: () -> Unit) = Page {
     // The itinerary is visible even if network map tiles are unavailable.
     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
         horizontalArrangement=Arrangement.spacedBy(7.dp)) {
-        pins.filter { it.kind == PinKind.STOP }.forEach { pin ->
+        pins.filter { it.kind == PinKind.STOP || it.kind == PinKind.STAY }.forEach { pin ->
             OutlinedButton(
                 onClick={
+                    selectedPin = pin
                     mapView.controller.animateTo(OsmPoint(pin.point.lat, pin.point.lon))
                     mapView.controller.setZoom(15.0)
                 },
@@ -320,6 +331,10 @@ fun MapScreen(state: UiState, back: () -> Unit) = Page {
             shape=RoundedCornerShape(13.dp)
         ) { Text("DIRECTIONS ↗", fontSize=11.sp) }
     }
+    state.error?.let {
+        Text(it,color=MaterialTheme.colorScheme.error,fontSize=11.sp,
+            modifier=Modifier.padding(top=5.dp))
+    }
     Text(
         when {
             state.preferences.transport==TransportMode.TRAIN ->
@@ -331,6 +346,87 @@ fun MapScreen(state: UiState, back: () -> Unit) = Page {
         fontSize=10.sp,color=RoloamMuted,
         modifier=Modifier.padding(top=4.dp, bottom=4.dp)
     )
+    selectedPin?.let { pin ->
+        ModalBottomSheet(
+            onDismissRequest = { selectedPin = null },
+            containerColor=MaterialTheme.colorScheme.surface
+        ) {
+            Column(
+                Modifier.fillMaxWidth()
+                    .padding(horizontal=24.dp)
+                    .navigationBarsPadding()
+            ) {
+                Text(
+                    when(pin.kind) {
+                        PinKind.STOP -> "ITINERARY STOP " + pin.badge
+                        PinKind.STAY -> "ACCOMMODATION · MAPPED LOCATION"
+                        PinKind.ORIGIN -> "YOUR STARTING POINT"
+                        PinKind.DESTINATION -> "DESTINATION"
+                    },
+                    fontSize=10.sp,color=RoloamAccent,fontWeight=FontWeight.Bold
+                )
+                Spacer(Modifier.height(9.dp))
+                Text(
+                    pin.stop?.place?.name ?: pin.stay?.name ?: pin.title,
+                    fontWeight=FontWeight.Black,fontSize=21.sp
+                )
+                Text(
+                    pin.stop?.let {
+                        it.time + " · " + it.durationMinutes + " min · " + it.place.category.replace('_',' ')
+                    } ?: pin.stay?.let {
+                        it.category.replace('_',' ') + " · " +
+                            String.format(java.util.Locale.ROOT,"%.1f",it.distanceFromCenterKm) +
+                            " km from destination"
+                    } ?: "Your mapped trip location",
+                    fontSize=12.sp,color=RoloamMuted
+                )
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "OpenStreetMap pin · " +
+                        String.format(java.util.Locale.ROOT,"%.5f, %.5f",pin.point.lat,pin.point.lon),
+                    color=RoloamMuted,fontSize=11.sp
+                )
+                Text(
+                    "Google Maps opens these exact coordinates; the listing name or availability may differ.",
+                    color=RoloamMuted,fontSize=11.sp,lineHeight=17.sp
+                )
+                Spacer(Modifier.height(13.dp))
+                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(9.dp)) {
+                    OutlinedButton(
+                        onClick={
+                            runCatching {
+                                context.startActivity(Intent(Intent.ACTION_VIEW,
+                                    Uri.parse(MapsLinks.place(pin.title,pin.point))))
+                            }
+                        },
+                        modifier=Modifier.weight(1f)
+                    ) {Text("EXACT PIN ↗",fontSize=11.sp)}
+                    Button(
+                        onClick={
+                            runCatching {
+                                context.startActivity(Intent(Intent.ACTION_VIEW,
+                                    Uri.parse(MapsLinks.navigateTo(pin.point,state.preferences.transport))))
+                            }
+                        },
+                        modifier=Modifier.weight(1f)
+                    ) {Text("DIRECTIONS ↗",fontSize=11.sp)}
+                }
+                pin.stop?.let { stop ->
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedButton(
+                        onClick={ selectedPin=null; replaceStop(stop) },
+                        enabled=!state.replacingPlace,
+                        modifier=Modifier.fillMaxWidth()
+                    ) {
+                        Text(if(state.replacingPlace) "SEARCHING…" else "ALREADY VISITED? REPLACE STOP ↻",
+                            fontSize=11.sp)
+                    }
+                }
+                Spacer(Modifier.height(22.dp))
+            }
+        }
+    }
+
 }
 
 @Composable

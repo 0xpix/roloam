@@ -66,7 +66,7 @@ fun RoloamApp(vm: RoloamViewModel) {
             )
             Screen.REVEAL -> RevealScreen(state, vm::acceptTrip, vm::roll, vm::back)
             Screen.PLAN -> PlanScreen(state, vm::open, vm::selectStop, vm::back)
-            Screen.MAP -> MapScreen(state, vm::back)
+            Screen.MAP -> MapScreen(state, vm::back, vm::suggestReplacement)
             Screen.STAY -> StayScreen(state, vm::back)
             Screen.PLACE -> PlaceScreen(state, vm::back)
             Screen.NOW -> NowScreen(

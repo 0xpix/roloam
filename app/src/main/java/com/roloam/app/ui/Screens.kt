@@ -693,7 +693,7 @@ private fun StayCard(stay: Stay, recommended: Boolean) {
             Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
                     onClick = { launchMaps(context, MapsLinks.place(stay.name, stay.point)) }
-                ) { Text("MAPS ↗") }
+                ) { Text("EXACT PIN ↗") }
                 stay.website?.let { site ->
                     OutlinedButton(
                         onClick = {
@@ -726,8 +726,7 @@ fun PlaceScreen(state: UiState, back:()->Unit) = Page {
     Spacer(Modifier.weight(1f))
     val ctx=LocalContext.current
     PrimaryButton("Navigate") {
-        val uri=Uri.parse("geo:${stop.place.point.lat},${stop.place.point.lon}?q=${stop.place.point.lat},${stop.place.point.lon}("+Uri.encode(stop.place.name)+")")
-        runCatching{ctx.startActivity(Intent(Intent.ACTION_VIEW,uri))}
+        launchMaps(ctx, MapsLinks.navigateTo(stop.place.point,state.preferences.transport))
     }
 }
 
