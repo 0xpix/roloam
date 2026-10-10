@@ -218,7 +218,7 @@ fun HomeScreen(state: UiState, open:(Screen)->Unit, roll:()->Unit, resume:()->Un
 }
 
 @Composable
-private fun ActiveTripHome(state: UiState, open:(Screen)->Unit, resume:()->Unit, cancelTrip:()->Unit) {
+private fun ColumnScope.ActiveTripHome(state: UiState, open:(Screen)->Unit, resume:()->Unit, cancelTrip:()->Unit) {
     val trip = state.savedTrip ?: return
     val context = LocalContext.current
     val progressPrefs = remember(context) {
