@@ -63,6 +63,7 @@ data class OverpassResponse(val elements: List<OverpassElement> = emptyList())
 data class OverpassCenter(val lat: Double, val lon: Double)
 data class OverpassElement(
     val id: Long,
+    val type: String = "node",
     val lat: Double? = null,
     val lon: Double? = null,
     val center: OverpassCenter? = null,
@@ -71,8 +72,11 @@ data class OverpassElement(
     fun point(): GeoPoint? {
         val la = lat ?: center?.lat
         val lo = lon ?: center?.lon
-        return if (la != null && lo != null) GeoPoint(la, lo) else null
+        val point = if (la != null && lo != null) GeoPoint(la, lo) else return null
+        return point.takeIf(TripDataQuality::validPoint)
     }
+
+    fun sourceRef(): String = "osm:$type/$id"
 }
 
 data class OsrmTable(
@@ -181,7 +185,9 @@ class LiveDataSource(private val network: Network) {
         return points.indices.map { i ->
             val sec = durs.getOrNull(i)
             val meters = dists.getOrNull(i)
-            if (sec == null) null else RouteMetric((sec / 60.0).roundToInt(), (meters ?: 0.0) / 1000.0)
+            val metric = if (sec != null && meters != null && sec.isFinite() && meters.isFinite())
+                RouteMetric((sec / 60.0).roundToInt(), meters / 1000.0) else null
+            metric.takeIf { TripDataQuality.validRoute(it, haversine(origin, points[i])) }
         }
     }
 
@@ -222,10 +228,11 @@ class LiveDataSource(private val network: Network) {
                 point = p,
                 category = category,
                 openingHours = tags["opening_hours"],
-                website = tags["website"] ?: tags["contact:website"],
-                description = tags["description"]
+                website = TripDataQuality.website(tags["website"] ?: tags["contact:website"]),
+                description = tags["description"],
+                sourceRef = e.sourceRef()
             )
-        }.distinctBy { it.name.lowercase() }
+        }.let(TripDataQuality::distinctPlaces)
     }
 
     suspend fun stays(center: GeoPoint, radiusKm: Int = 35): List<Stay> {
@@ -246,12 +253,13 @@ class LiveDataSource(private val network: Network) {
                 name = name,
                 point = p,
                 category = tags["tourism"] ?: "stay",
-                website = tags["website"] ?: tags["contact:website"] ?: tags["url"],
+                website = TripDataQuality.website(tags["website"] ?: tags["contact:website"] ?: tags["url"]),
                 phone = tags["phone"] ?: tags["contact:phone"],
                 openingHours = tags["opening_hours"],
-                distanceFromCenterKm = haversine(center, p)
+                distanceFromCenterKm = haversine(center, p),
+                sourceRef = e.sourceRef()
             )
-        }.distinctBy { it.name.lowercase() }
+        }.let(TripDataQuality::distinctStays)
     }
 
     suspend fun weather(center: GeoPoint): List<WeatherDay> {
