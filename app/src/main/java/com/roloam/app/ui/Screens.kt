@@ -421,7 +421,7 @@ fun RevealScreen(state: UiState, accept:()->Unit, reroll:()->Unit, back:()->Unit
                     color=MaterialTheme.colorScheme.onBackground)
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "READ MORE · WIKIPEDIA ↗",
+                    "SOURCE · WIKIPEDIA (CC BY-SA) ↗",
                     fontSize=11.sp, fontWeight=FontWeight.Bold, color=RoloamMuted,
                     modifier=Modifier.clickable {
                         runCatching {
