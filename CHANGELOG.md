@@ -1,5 +1,16 @@
 # Roloam changelog
 
+## 0.11.0-beta — Real journeys, useful destinations
+
+- Replace the Wikipedia history paragraph with a real day-by-day itinerary, mapped attractions, and suggested camping/hostel options before accepting a trip.
+- Give each stop its planned time, category and direct exact-pin Google Maps link; show accommodation names, category, proximity and alternatives.
+- Reject memorial stones, graves, milestones and generic historic records from discovery. Prefer actual landmarks, museums, parks, viewpoints and scenic places.
+- For TRAIN trips, request real outbound timetable journeys for the trip date using v6.db.transport.rest and reject candidates without a verified feasible connection. Never display the previous straight-line-speed estimate as actual train time.
+- Display scheduled departure, arrival, changes, and provider when available. Distances for rail are explicitly straight-line distances.
+- Do not invent an evening return departure: users are prompted to check DB Navigator for the return trip.
+- Remove unnecessary background encyclopedia fetching. Add unit tests for train timetable parsing and visitor-attraction filtering.
+- Public timetable and map providers may be unavailable; live schedules, ticket prices, return trains and lodging availability are not guaranteed.
+
 ## 0.10.0-beta — Know before you go
 
 - The Reveal screen now introduces the destination before you accept a trip.
