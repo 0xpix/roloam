@@ -35,7 +35,8 @@ data class Place(
     val category: String,
     val openingHours: String? = null,
     val website: String? = null,
-    val description: String? = null
+    val description: String? = null,
+    val sourceRef: String? = null // Stable OSM node/way/relation identity
 )
 
 data class Stay(
@@ -46,7 +47,8 @@ data class Stay(
     val website: String? = null,
     val phone: String? = null,
     val openingHours: String? = null,
-    val distanceFromCenterKm: Double = 0.0
+    val distanceFromCenterKm: Double = 0.0,
+    val sourceRef: String? = null // Stable OSM node/way/relation identity
 )
 
 data class WeatherHour(
