@@ -623,10 +623,13 @@ fun PlanScreen(state: UiState, open:(Screen)->Unit, select:(TripStop)->Unit, bac
                     val depart = if (finished == null || finished.isBefore(java.time.LocalTime.of(16, 0)))
                         java.time.LocalTime.of(16, 0) else finished
                     add(TimelineUi(
-                        depart.format(DateTimeFormatter.ofPattern("HH:mm")),
-                        "Return to " + trip.originLabel,
+                        if (state.preferences.transport == TransportMode.TRAIN) "—"
+                        else depart.format(DateTimeFormatter.ofPattern("HH:mm")),
                         if (state.preferences.transport == TransportMode.TRAIN)
-                            "Return train not verified · check timetable"
+                            "Check return train to " + trip.originLabel
+                        else "Return to " + trip.originLabel,
+                        if (state.preferences.transport == TransportMode.TRAIN)
+                            "Departure and duration not verified · DB Navigator"
                         else travelText(trip.destination.travelMinutes),
                         TimelineKind.TRAVEL, null
                     ))
