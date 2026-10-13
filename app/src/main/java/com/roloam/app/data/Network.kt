@@ -165,7 +165,9 @@ class LiveDataSource(private val network: Network) {
             val name = tags["name"] ?: return@mapNotNull null
             val population = tags["population"]?.filter(Char::isDigit)?.toLongOrNull()
             val country = tags["addr:country"] ?: tags["is_in:country"]
-            CityRaw(name, country, p, population)
+            val wikipediaTitle = tags["wikipedia"]?.removePrefix("en:")
+                ?.takeIf { tags["wikipedia"]?.startsWith("en:") == true && it.isNotBlank() }
+            CityRaw(name, country, p, population, wikipediaTitle)
         }.filter { haversine(origin, it.point) <= radiusKm.toDouble() }
             .distinctBy { it.name.lowercase() + ":" + (it.point.lat * 100).toInt() + ":" + (it.point.lon * 100).toInt() }
     }
@@ -308,7 +310,13 @@ class LiveDataSource(private val network: Network) {
     }
 }
 
-data class CityRaw(val name: String, val country: String?, val point: GeoPoint, val population: Long?)
+data class CityRaw(
+    val name: String,
+    val country: String?,
+    val point: GeoPoint,
+    val population: Long?,
+    val wikipediaTitle: String? = null
+)
 data class RouteMetric(val minutes: Int, val distanceKm: Double)
 
 fun haversine(a: GeoPoint, b: GeoPoint): Double {
