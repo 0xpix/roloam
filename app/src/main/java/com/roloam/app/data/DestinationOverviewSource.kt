@@ -3,7 +3,6 @@ package com.roloam.app.data
 import com.roloam.app.model.Destination
 import com.roloam.app.model.DestinationOverview
 import com.roloam.app.model.GeoPoint
-import com.squareup.moshi.Moshi
 import java.net.URLEncoder
 
 /** MediaWiki Action API data; formatversion=2 returns a typed pages array. */
@@ -46,7 +45,7 @@ class DestinationOverviewSource(private val network: Network) {
             ?.takeIf { it.isNotBlank() } ?: destination.name
         val url = "https://en.wikipedia.org/w/api.php?" +
             "action=query&format=json&formatversion=2&prop=extracts%7Ccoordinates" +
-            "&exintro=1&explaintext=1&exsentences=3&redirects=1&colimit=1&titles=" +
+            "&exintro=1&explaintext=1&exchars=550&redirects=1&colimit=1&titles=" +
             URLEncoder.encode(title, "UTF-8")
         val response = adapter.fromJson(network.get(url)) ?: return null
         return response.query?.pages.orEmpty()
