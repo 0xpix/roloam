@@ -306,9 +306,12 @@ class TripRepository(context: Context) {
             var q = 0.0
             if (p.website != null) q += 0.8
             if (p.openingHours != null) q += 0.5
-            if (cat in listOf("museum", "gallery", "attraction", "viewpoint", "historic")) q += 1.2
-            if (prefs.style == TripStyle.NATURE && cat in listOf("viewpoint", "park", "garden")) q += 1.2
-            if (prefs.style == TripStyle.CITY && cat in listOf("museum", "gallery", "historic", "attraction")) q += 1.0
+            if (cat in listOf("museum", "gallery", "attraction", "viewpoint",
+                    "castle", "fort", "ruins", "palace", "waterfall")) q += 1.4
+            if (prefs.style == TripStyle.NATURE &&
+                cat in listOf("viewpoint", "park", "garden", "nature_reserve", "peak", "waterfall")) q += 1.2
+            if (prefs.style == TripStyle.CITY &&
+                cat in listOf("museum", "gallery", "castle", "palace", "attraction")) q += 1.0
             q -= haversine(center, p.point) / 18.0
             return q
         }
