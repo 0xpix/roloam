@@ -1,5 +1,15 @@
 # Roloam changelog
 
+## 0.9.0-beta — Reliable trip data engine
+
+- Verify multiple destination candidates before offering a trip, rather than accepting a city with missing mapped stops.
+- Require distinct, real OpenStreetMap attractions and at least one mapped stay for multi-day trips; no synthetic city-centre stops.
+- Validate place and accommodation coordinates, normalize website URLs, and retain stable OSM node/way/relation identities.
+- Reject invalid or implausible route-table responses; travel-time fallbacks and train times remain explicitly estimated.
+- Distribute activities across every trip day and do not add rejected destinations to recent-trip history.
+- Add JVM regression tests for map data, route plausibility, duplicate identities and incomplete trip rejection.
+- Booking availability, exact train schedules and providers' uptime are not guaranteed by this release.
+
 ## 0.8.0-beta — Keep roaming
 
 - Recognizable moving train, bike, car and pedestrian symbols replace the rough drawn icons.
