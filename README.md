@@ -10,13 +10,13 @@ Roloam is a deliberately small Android app for spontaneous 1–3 day escapes. Th
 - Nearby destinations from OpenStreetMap / Overpass.
 - Real road-time scoring for car trips with OSRM.
 - Bike and walking route-time support through OpenStreetMap routing endpoints.
-- Train mode is usable, but its travel time is currently an estimate; exact timetable routing is the next accuracy milestone.
+- Train trips require a confirmed outbound public-timetable route for the planned date (v6.db.transport.rest); estimated speeds are never shown as booked or verified trains. Return timetable still needs separate confirmation.
 - Real attractions, parks, viewpoints and museums from OpenStreetMap.
 - Real campsites, hostels and hotels from OpenStreetMap, with direct website links when available.
 - Destination weather from Open-Meteo.
 - A compact itinerary engine that balances route distance, place type, weather and useful time-of-day.
 - Minimal screens: Home → Roll → Reveal → Plan, with Map / Stay / Place / Now branches.
-- Reveal now shows a short, sourced Wikipedia place overview when the article coordinates match the mapped destination, plus verified planned highlights, before trip acceptance. Descriptions load without blocking trip discovery.
+- Before accepting a trip, Reveal shows day-by-day real mapped stops, expected visit times, suggested campsites/hostels, and Google Maps exact-pin links. A train connection shows actual scheduled outbound time where available, or an error rather than an invented duration.
 - Animated journey header changes between car, train, bike and walking.
 - No API keys required.
 
