@@ -16,6 +16,7 @@ Roloam is a deliberately small Android app for spontaneous 1–3 day escapes. Th
 - Destination weather from Open-Meteo.
 - A compact itinerary engine that balances route distance, place type, weather and useful time-of-day.
 - Minimal screens: Home → Roll → Reveal → Plan, with Map / Stay / Place / Now branches.
+- Reveal now shows a short, sourced Wikipedia place overview when the article coordinates match the mapped destination, plus verified planned highlights, before trip acceptance. Descriptions load without blocking trip discovery.
 - Animated journey header changes between car, train, bike and walking.
 - No API keys required.
 
