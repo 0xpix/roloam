@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 enum class Screen { HOME, PREFERENCES, SETTINGS, REVEAL, PLAN, MAP, STAY, PLACE, NOW, WEATHER, PACKING }
 
@@ -111,7 +112,7 @@ class RoloamViewModel(app: Application) : AndroidViewModel(app) {
                     // destination may receive the response; outdated rerolls are ignored.
                     overviewJob = viewModelScope.launch {
                         val overview = try {
-                            trips.overview(plan.destination)
+                            withTimeoutOrNull(8_000L) { trips.overview(plan.destination) }
                         } catch (cancelled: CancellationException) {
                             throw cancelled
                         } catch (_: Exception) {
