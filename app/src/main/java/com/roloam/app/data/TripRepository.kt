@@ -14,7 +14,11 @@ import kotlin.math.roundToInt
 import kotlin.random.Random
 
 class TripRepository(context: Context) {
-    private val source = LiveDataSource(Network(context))
+    private val network = Network(context)
+    private val source = LiveDataSource(network)
+    private val overviewSource = DestinationOverviewSource(network)
+
+    suspend fun overview(destination: Destination): DestinationOverview? = overviewSource.fetch(destination)
     private val history = VisitedPlaces(context)
     private val random = Random.Default
     private val discoveryPrefs = context.getSharedPreferences("roloam_discovery", Context.MODE_PRIVATE)
@@ -94,7 +98,8 @@ class TripRepository(context: Context) {
                 city.population,
                 metric?.minutes ?: ((fallbackKm * 1.25 / speed) * 60).roundToInt(),
                 if ((metric?.distanceKm ?: 0.0) > 0) metric!!.distanceKm else fallbackKm * 1.25,
-                routeEstimated = metric == null || prefs.transport == TransportMode.TRAIN
+                routeEstimated = metric == null || prefs.transport == TransportMode.TRAIN,
+                wikipediaTitle = city.wikipediaTitle
             )
         }.filter { validTravel(it.travelMinutes, days, prefs.transport) }
 
