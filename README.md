@@ -44,6 +44,8 @@ Installed beta builds can then discover later prereleases from Settings.
 
 ## Accuracy rules
 
+A rolled trip is now checked for valid map coordinates, distinct real OSM activities on each day, and at least one mapped accommodation for overnight trips. If no candidate passes, Roloam reports the verification failure rather than inventing a stop or stay. Route-table metrics are sanity-checked; estimates are labeled. OSM listings do not confirm businesses are open or accommodation is bookable. Train times are still estimates, not real schedules.
+
 Roloam does **not** invent campsite prices, availability or opening hours. If live data is unavailable, it says so and falls back only for destination discovery rather than fabricating booking information.
 
 The map shows trip order. It is not intended to replace turn-by-turn navigation; the app hands a selected stop to the installed navigation app.
