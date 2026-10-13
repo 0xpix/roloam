@@ -377,41 +377,101 @@ private fun Choice(label:String, values:List<String>, selected:Int, onSelect:(In
 
 @Composable
 fun RevealScreen(state: UiState, accept:()->Unit, reroll:()->Unit, back:()->Unit) = Page {
-    val trip=state.trip ?: return@Page
-    RoloamSectionBar("Trip")
-    JourneyHeader(state.preferences.transport)
-    DateStamp()
-    Spacer(Modifier.height(10.dp))
-    BigTitle("Your trip.")
-    Text("One result. No endless browsing.", color=RoloamMuted)
-    Spacer(Modifier.height(34.dp))
-    BigTitle(trip.destination.name + " — " + trip.days + if(trip.days==1) " day" else " days")
-    Spacer(Modifier.height(12.dp))
-    val h=trip.destination.travelMinutes/60
-    val m=trip.destination.travelMinutes%60
+    val trip = state.trip ?: return@Page
+    val context = LocalContext.current
+    val overview = state.destinationOverview
+    val hours = trip.destination.travelMinutes / 60
+    val minutes = trip.destination.travelMinutes % 60
     val travelPrefix = if (trip.destination.routeEstimated) "≈ " else ""
-    val stayText = if (trip.days == 1) "day trip" else (trip.stay?.let{if(it.category.contains("camp")) "camping found" else "stay found"} ?: "check stay")
-    Text(travelPrefix + (if(h>0) h.toString()+"h " else "") + m + "m  ·  " + trip.destination.distanceKm.roundToInt() + " km  ·  " + stayText)
-    Spacer(Modifier.weight(1f))
-    CityGlyph(trip.destination.name)
-    Spacer(Modifier.weight(1f))
-    if(!trip.usedLiveData) Text("Live place data was limited; route generation used the offline destination fallback.", fontSize=11.sp, color=RoloamMuted, modifier=Modifier.padding(bottom=12.dp))
-    if (state.rolling) {
-        Text("Searching for a different destination…", fontSize = 12.sp, color = RoloamMuted)
+    val stayText = if (trip.days == 1) "day trip" else
+        (trip.stay?.let { if (it.category.contains("camp")) "camping found" else "stay found" }
+            ?: "stay not found")
+    val highlights = trip.allStops().map { it.place.name }.distinct().take(3)
+
+    // Scrolling facts never push the acceptance and reroll actions off screen.
+    Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
+        RoloamSectionBar("Discover")
+        JourneyHeader(state.preferences.transport)
+        DateStamp()
+        Spacer(Modifier.height(20.dp))
+        Text("YOUR NEXT ESCAPE", fontSize=11.sp, fontWeight=FontWeight.Bold, color=RoloamMuted,
+            letterSpacing=1.5.sp)
         Spacer(Modifier.height(8.dp))
-        LinearProgressIndicator(Modifier.fillMaxWidth(), color = RoloamAccent)
-        Spacer(Modifier.height(12.dp))
+        BigTitle(trip.destination.name)
+        trip.destination.country?.takeIf { it.isNotBlank() }?.let {
+            Text(it, color=RoloamMuted, fontSize=13.sp, modifier=Modifier.padding(top=3.dp))
+        }
+        Spacer(Modifier.height(14.dp))
+        Text(
+            "${trip.days} ${if (trip.days == 1) "day" else "days"}  ·  " +
+                travelPrefix + (if (hours > 0) "${hours}h " else "") + "${minutes}m  ·  " +
+                "${trip.destination.distanceKm.roundToInt()} km",
+            fontSize=13.sp, fontWeight=FontWeight.SemiBold
+        )
+        Text(stayText, color=RoloamMuted, fontSize=12.sp, modifier=Modifier.padding(top=4.dp))
+        Spacer(Modifier.height(26.dp))
+        HorizontalDivider(color=RoloamMuted.copy(alpha=.24f))
+        Spacer(Modifier.height(18.dp))
+        Text("ABOUT THE PLACE", fontSize=11.sp, fontWeight=FontWeight.Bold,
+            letterSpacing=1.2.sp, color=RoloamMuted)
+        Spacer(Modifier.height(10.dp))
+        when {
+            overview != null -> {
+                Text(overview.summary, fontSize=14.sp, lineHeight=21.sp,
+                    color=MaterialTheme.colorScheme.onBackground)
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "READ MORE · WIKIPEDIA ↗",
+                    fontSize=11.sp, fontWeight=FontWeight.Bold, color=RoloamMuted,
+                    modifier=Modifier.clickable {
+                        runCatching {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(overview.sourceUrl)))
+                        }
+                    }.padding(vertical=7.dp)
+                )
+            }
+            state.overviewLoading -> {
+                Text("Looking up a verified destination overview…", fontSize=13.sp,
+                    color=RoloamMuted)
+            }
+            else -> {
+                Text("A verified description isn't available for this destination yet.",
+                    fontSize=13.sp, color=RoloamMuted, lineHeight=19.sp)
+            }
+        }
+        Spacer(Modifier.height(24.dp))
+        Text("HIGHLIGHTS ON THIS TRIP", fontSize=11.sp, fontWeight=FontWeight.Bold,
+            letterSpacing=1.2.sp, color=RoloamMuted)
+        Spacer(Modifier.height(10.dp))
+        highlights.forEachIndexed { index, name ->
+            Row(Modifier.fillMaxWidth().padding(vertical=5.dp),
+                verticalAlignment=Alignment.Top) {
+                Text("${index + 1}.", fontSize=13.sp, fontWeight=FontWeight.Bold,
+                    color=RoloamMuted, modifier=Modifier.width(27.dp))
+                Text(name, fontSize=14.sp, lineHeight=20.sp,
+                    color=MaterialTheme.colorScheme.onBackground)
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+    }
+    if (state.rolling) {
+        Text("Searching for a different destination…", fontSize=12.sp, color=RoloamMuted)
+        Spacer(Modifier.height(8.dp))
+        LinearProgressIndicator(Modifier.fillMaxWidth(), color=RoloamAccent)
+        Spacer(Modifier.height(10.dp))
     }
     state.error?.let {
-        Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(bottom = 10.dp))
+        Text(it, color=MaterialTheme.colorScheme.error,
+            modifier=Modifier.padding(bottom=10.dp))
     }
-    PrimaryButton("Accept this trip", enabled = !state.rolling, onClick=accept)
-    Spacer(Modifier.height(10.dp))
-    OutlinedButton(
-        onClick=reroll, enabled = !state.rolling,
-        modifier=Modifier.fillMaxWidth().height(52.dp), shape=RoundedCornerShape(18.dp)
-    ) { Text(if (state.rolling) "FINDING ANOTHER TRIP…" else "REROLL  ↻") }
-    Text("‹ back", Modifier.padding(top=14.dp).clickable{back()}, color=RoloamMuted)
+    PrimaryButton("Accept this trip", enabled=!state.rolling, onClick=accept)
+    Spacer(Modifier.height(9.dp))
+    OutlinedButton(onClick=reroll, enabled=!state.rolling,
+        modifier=Modifier.fillMaxWidth().height(52.dp),
+        shape=RoundedCornerShape(18.dp)) {
+        Text(if (state.rolling) "FINDING ANOTHER TRIP…" else "REROLL  ↻")
+    }
+    Text("‹ back", Modifier.padding(top=12.dp, bottom=5.dp).clickable { back() }, color=RoloamMuted)
 }
 
 @Composable
