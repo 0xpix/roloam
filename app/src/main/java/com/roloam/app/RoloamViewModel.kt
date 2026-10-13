@@ -16,6 +16,8 @@ import java.io.File
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 enum class Screen { HOME, PREFERENCES, SETTINGS, REVEAL, PLAN, MAP, STAY, PLACE, NOW, WEATHER, PACKING }
@@ -27,6 +29,8 @@ data class UiState(
     val rolling: Boolean = false,
     val replacingPlace: Boolean = false,
     val trip: TripPlan? = null,
+    val destinationOverview: DestinationOverview? = null,
+    val overviewLoading: Boolean = false,
     val savedTrip: TripPlan? = null,
     val savedTripPreferences: TripPreferences? = null,
     val selectedStop: TripStop? = null,
@@ -44,6 +48,7 @@ class RoloamViewModel(app: Application) : AndroidViewModel(app) {
     private val tripStore = TripStore(app)
     private val visitedPlaces = VisitedPlaces(app)
     private val updates = BetaUpdateManager(app)
+    private var overviewJob: Job? = null
     private val prefsStore = app.getSharedPreferences("roloam", 0)
     private val acceptedTrip = tripStore.load()
     private val acceptedPreferences = tripStore.loadPreferences()
@@ -91,11 +96,33 @@ class RoloamViewModel(app: Application) : AndroidViewModel(app) {
         if (_state.value.rolling) return
         val origin = _state.value.origin
         val preferences = _state.value.preferences
+        overviewJob?.cancel()
         viewModelScope.launch {
-            _state.value = _state.value.copy(rolling = true, error = null)
+            _state.value = _state.value.copy(
+                rolling = true, destinationOverview = null, overviewLoading = false, error = null
+            )
             runCatching { trips.roll(origin, preferences) }
                 .onSuccess { plan ->
-                    _state.value = _state.value.copy(rolling = false, trip = plan, screen = Screen.REVEAL)
+                    _state.value = _state.value.copy(
+                        rolling = false, trip = plan, screen = Screen.REVEAL,
+                        destinationOverview = null, overviewLoading = true
+                    )
+                    // The preview must not slow down finding a trip. Only its exact
+                    // destination may receive the response; outdated rerolls are ignored.
+                    overviewJob = viewModelScope.launch {
+                        val overview = try {
+                            trips.overview(plan.destination)
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (_: Exception) {
+                            null
+                        }
+                        if (_state.value.trip?.generatedAtEpochMs == plan.generatedAtEpochMs) {
+                            _state.value = _state.value.copy(
+                                destinationOverview = overview, overviewLoading = false
+                            )
+                        }
+                    }
                 }
                 .onFailure { t ->
                     _state.value = _state.value.copy(rolling = false, error = t.message ?: "Could not build a trip")
