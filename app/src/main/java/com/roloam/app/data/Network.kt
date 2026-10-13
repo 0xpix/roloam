@@ -212,18 +212,22 @@ class LiveDataSource(private val network: Network) {
         val q = """
             [out:json][timeout:12];
             (
-              nwr["tourism"~"attraction|museum|gallery|viewpoint"](around:$meters,${center.lat},${center.lon});
-              nwr["historic"]["name"](around:$meters,${center.lat},${center.lon});
-              nwr["leisure"~"park|garden"]["name"](around:$meters,${center.lat},${center.lon});
+              nwr["tourism"~"^(attraction|museum|gallery|viewpoint|zoo|theme_park)$"]["name"](around:$meters,${center.lat},${center.lon});
+              nwr["historic"~"^(castle|fort|ruins|archaeological_site|city_gate|citywalls|palace)$"]["name"](around:$meters,${center.lat},${center.lon});
+              nwr["leisure"~"^(park|garden|nature_reserve)$"]["name"](around:$meters,${center.lat},${center.lon});
+              nwr["natural"~"^(peak|waterfall|beach|cave_entrance)$"]["name"](around:$meters,${center.lat},${center.lon});
             );
             out center tags 120;
         """.trimIndent()
         return overpass(q).elements.mapNotNull { e ->
             val p = e.point() ?: return@mapNotNull null
             val tags = e.tags ?: return@mapNotNull null
-            val name = tags["name"] ?: return@mapNotNull null
-            val category = tags["tourism"] ?: tags["historic"]?.let { "historic" }
-                ?: tags["leisure"] ?: "place"
+            val name = tags["name"]?.trim()?.takeIf { it.length >= 3 } ?: return@mapNotNull null
+            // OSM "historic" alone included graves, named memorial stones and
+            // individual people. Only visitor destinations belong in a trip.
+            if (!AttractionQuality.isUseful(tags, name)) return@mapNotNull null
+            val category = tags["tourism"] ?: tags["historic"] ?: tags["leisure"]
+                ?: tags["natural"] ?: "place"
             Place(
                 id = e.id,
                 name = name,
