@@ -25,7 +25,14 @@ data class Destination(
     val population: Long? = null,
     val travelMinutes: Int = 0,
     val distanceKm: Double = 0.0,
-    val routeEstimated: Boolean = false
+    val routeEstimated: Boolean = false,
+    val wikipediaTitle: String? = null
+)
+
+data class DestinationOverview(
+    val summary: String,
+    val sourceTitle: String,
+    val sourceUrl: String
 )
 
 data class Place(

@@ -12,8 +12,8 @@ android {
         applicationId = "com.roloam.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 90000
-        versionName = "0.9.0"
+        versionCode = 100000
+        versionName = "0.10.0"
         buildConfigField("boolean", "BETA_CHANNEL", "false")
     }
 
