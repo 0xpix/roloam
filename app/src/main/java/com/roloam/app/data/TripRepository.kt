@@ -103,67 +103,81 @@ class TripRepository(context: Context) {
             error("No destinations match the travel-time range. Try another duration or transport mode.")
         }
 
-        // Never return the previous destination while another viable option exists.
+        // Prefer fresh trips, but verify real attractions AND an overnight stay before
+        // promising a destination to the user. No placeholder city-centre itineraries.
         val freshPool = pool.filterNot { recentDestinations.contains(it.name.lowercase()) }
         val allowed = freshPool.ifEmpty {
             pool.filterNot { it.name.lowercase() == recentDestinations.firstOrNull() }
                 .ifEmpty { pool }
         }
-        val chosen = weightedPick(allowed)
-        recentDestinations.remove(chosen.name.lowercase())
-        recentDestinations.addFirst(chosen.name.lowercase())
-        while (recentDestinations.size > 10) recentDestinations.removeLast()
-        discoveryPrefs.edit().putString("recent_destinations", recentDestinations.joinToString("|")).apply()
-
-        val startDate = nextSaturday(LocalDate.now())
-
-        val placesDeferred = async {
-            val nearby = runCatching { source.attractions(chosen.point, prefs.style.name) }.getOrDefault(emptyList())
-            if (nearby.size >= 3) nearby else
-                (nearby + runCatching { source.attractions(chosen.point, prefs.style.name, 40) }.getOrDefault(emptyList()))
-                    .distinctBy { it.name.lowercase() }
-        }
-        val staysDeferred = async {
-            if (days == 1) emptyList()
-            else {
-                val nearby = runCatching { source.stays(chosen.point) }.getOrDefault(emptyList())
-                if (nearby.size >= 4) nearby else
-                    (nearby + runCatching { source.stays(chosen.point, 70) }.getOrDefault(emptyList()))
-                        .distinctBy { it.name.lowercase() }
+        val remaining = allowed.toMutableList()
+        val trials = buildList {
+            repeat(minOf(4, remaining.size)) {
+                val chosen = weightedPick(remaining)
+                add(chosen)
+                remaining.remove(chosen)
             }
         }
-        val weatherDeferred = async { runCatching { source.weather(chosen.point) }.getOrDefault(emptyList()) }
+        val startDate = nextSaturday(LocalDate.now())
 
-        val places = placesDeferred.await()
-        val rawStays = staysDeferred.await()
-        val weather = weatherDeferred.await()
+        for (chosen in trials) {
+            val placesDeferred = async {
+                val nearby = runCatching { source.attractions(chosen.point, prefs.style.name) }
+                    .getOrDefault(emptyList())
+                val expanded = if (nearby.size >= days * 2) nearby else {
+                    nearby + runCatching { source.attractions(chosen.point, prefs.style.name, 40) }
+                        .getOrDefault(emptyList())
+                }
+                TripDataQuality.distinctPlaces(expanded)
+            }
+            val staysDeferred = async {
+                if (days == 1) emptyList()
+                else {
+                    val nearby = runCatching { source.stays(chosen.point) }.getOrDefault(emptyList())
+                    val expanded = if (nearby.isNotEmpty()) nearby else {
+                        nearby + runCatching { source.stays(chosen.point, 70) }.getOrDefault(emptyList())
+                    }
+                    TripDataQuality.distinctStays(expanded)
+                }
+            }
 
-        val unseenPlaces = rankPlaces(
-            places.filterNot { history.contains(it) }, chosen.point, prefs
-        )
-        if (places.isNotEmpty() && unseenPlaces.isEmpty()) {
-            error("You've already explored the mapped places around " + chosen.name +
-                ". Try another destination for fresh discoveries.")
+            val places = placesDeferred.await()
+            val rawStays = staysDeferred.await()
+            val rankedPlaces = rankPlaces(
+                places.filterNot { history.contains(it) }, chosen.point, prefs
+            )
+            // Require enough distinct real stops to cover every day. No fictional fallback POI.
+            if (rankedPlaces.size < days * 2 || (days > 1 && rawStays.isEmpty())) continue
+
+            // Weather can fail independently: its absence must not invent weather conditions.
+            val weather = runCatching { source.weather(chosen.point) }.getOrDefault(emptyList())
+            val itinerary = buildItinerary(rankedPlaces, chosen, days, startDate, weather)
+            val stays = rankStays(rawStays, prefs, itinerary, chosen.point)
+            val plan = TripPlan(
+                originLabel = origin.label,
+                origin = origin.point,
+                destination = chosen,
+                days = days,
+                startDate = startDate,
+                stay = stays.firstOrNull(),
+                alternativeStays = stays.drop(1).take(4),
+                itinerary = itinerary,
+                usedLiveData = true
+            )
+
+            if (TripDataQuality.problems(plan).isNotEmpty()) continue
+            // A failed candidate is never recorded as a successfully suggested trip.
+            recentDestinations.remove(chosen.name.lowercase())
+            recentDestinations.addFirst(chosen.name.lowercase())
+            while (recentDestinations.size > 10) recentDestinations.removeLast()
+            discoveryPrefs.edit()
+                .putString("recent_destinations", recentDestinations.joinToString("|"))
+                .apply()
+            return@coroutineScope plan
         }
-        // A centre pin is only a clearly labeled fallback when the remote data
-        // source returns nothing; it must never masquerade as a fresh attraction.
-        val rankedPlaces = unseenPlaces.ifEmpty {
-            listOf(Place(-1, chosen.name + " city centre (fallback)", chosen.point, "city"))
-        }
 
-        val itinerary = buildItinerary(rankedPlaces, chosen, days, startDate, weather)
-        val stays = rankStays(rawStays, prefs, itinerary, chosen.point)
-        TripPlan(
-            originLabel = origin.label,
-            origin = origin.point,
-            destination = chosen,
-            days = days,
-            startDate = startDate,
-            stay = stays.firstOrNull(),
-            alternativeStays = stays.drop(1).take(4),
-            itinerary = itinerary,
-            usedLiveData = liveCities.isNotEmpty() && places.isNotEmpty()
-        )
+        error("Could not verify enough real places and accommodation for this trip. " +
+            "Try again, change transport, or check your connection.")
     }
 
     /**
@@ -274,8 +288,8 @@ class TripRepository(context: Context) {
         }
         val close = input.filter { haversine(center, it.point) < 16.0 }
         val usable = if (close.size >= 3) close else input.filter { haversine(center, it.point) < 40.0 }
-        return usable.sortedByDescending(::quality)
-            .distinctBy { it.name.lowercase() }
+        return TripDataQuality.distinctPlaces(usable)
+            .sortedByDescending(::quality)
             .take(16)
     }
 
@@ -339,7 +353,9 @@ class TripRepository(context: Context) {
             var clock = if (day == 0) {
                 LocalTime.of(8, 0).plusMinutes(destination.travelMinutes.toLong())
             } else LocalTime.of(9, 0)
-            val count = if (days == 1) 5 else 4
+            // Reserve stops for later days instead of exhausting the list on day one.
+            val count = minOf(if (days == 1) 5 else 4,
+                (chosen.size / (days - day)).coerceAtLeast(1))
             val stops = mutableListOf<TripStop>()
             repeat(count) {
                 if (chosen.isEmpty()) return@repeat
