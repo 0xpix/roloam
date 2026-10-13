@@ -1,5 +1,15 @@
 # Roloam changelog
 
+## 0.10.0-beta — Know before you go
+
+- The Reveal screen now introduces the destination before you accept a trip.
+- Optional, coordinate-verified Wikipedia overviews supply short local context and a direct source link.
+- Explicit English Wikipedia references from OpenStreetMap improve article matching.
+- Show three real attractions from the generated itinerary, travel time, distance and lodging type alongside the description.
+- Load background information separately so slow Wikipedia responses do not delay trip discovery or rerolling.
+- Keep Accept and Reroll visible while the preview scrolls; show an honest fallback when no reliable description exists.
+- Add regression tests for coordinate mismatches, missing descriptions and MediaWiki parsing.
+
 ## 0.9.0-beta — Reliable trip data engine
 
 - Verify multiple destination candidates before offering a trip, rather than accepting a city with missing mapped stops.
