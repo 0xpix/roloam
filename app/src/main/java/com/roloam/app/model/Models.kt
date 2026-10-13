@@ -26,7 +26,17 @@ data class Destination(
     val travelMinutes: Int = 0,
     val distanceKm: Double = 0.0,
     val routeEstimated: Boolean = false,
-    val wikipediaTitle: String? = null
+    val wikipediaTitle: String? = null,
+    val trainConnection: TrainConnection? = null
+)
+
+/** Scheduled outbound rail journey for the exact trip date, not a speed estimate. */
+data class TrainConnection(
+    val durationMinutes: Int,
+    val departureIso: String,
+    val arrivalIso: String,
+    val transfers: Int,
+    val provider: String
 )
 
 data class DestinationOverview(

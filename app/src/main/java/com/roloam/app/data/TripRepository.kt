@@ -16,6 +16,7 @@ import kotlin.random.Random
 class TripRepository(context: Context) {
     private val network = Network(context)
     private val source = LiveDataSource(network)
+    private val trainSource = TrainTimetableSource(network)
     private val overviewSource = DestinationOverviewSource(network)
 
     suspend fun overview(destination: Destination): DestinationOverview? = overviewSource.fetch(destination)
@@ -125,7 +126,23 @@ class TripRepository(context: Context) {
         }
         val startDate = nextSaturday(LocalDate.now())
 
-        for (chosen in trials) {
+        for (candidate in trials) {
+            val chosen = if (prefs.transport == TransportMode.TRAIN) {
+                // Validate the departure on the actual trip date. The initial
+                // speed estimate is only for candidate search, never presented.
+                val scheduled = runCatching {
+                    kotlinx.coroutines.withTimeoutOrNull(9_000L) {
+                        trainSource.connection(origin.point, origin.label, candidate, startDate)
+                    }
+                }.getOrNull() ?: continue
+                if (!validTravel(scheduled.durationMinutes, days, prefs.transport)) continue
+                candidate.copy(
+                    travelMinutes = scheduled.durationMinutes,
+                    routeEstimated = false,
+                    trainConnection = scheduled,
+                    distanceKm = haversine(origin.point, candidate.point)
+                )
+            } else candidate
             val placesDeferred = async {
                 val nearby = runCatching { source.attractions(chosen.point, prefs.style.name) }
                     .getOrDefault(emptyList())
@@ -181,6 +198,10 @@ class TripRepository(context: Context) {
             return@coroutineScope plan
         }
 
+        if (prefs.transport == TransportMode.TRAIN) {
+            error("Could not verify a feasible train connection and real places for this trip date. " +
+                "Check DB Navigator, change duration, or try again later.")
+        }
         error("Could not verify enough real places and accommodation for this trip. " +
             "Try again, change transport, or check your connection.")
     }
@@ -285,9 +306,12 @@ class TripRepository(context: Context) {
             var q = 0.0
             if (p.website != null) q += 0.8
             if (p.openingHours != null) q += 0.5
-            if (cat in listOf("museum", "gallery", "attraction", "viewpoint", "historic")) q += 1.2
-            if (prefs.style == TripStyle.NATURE && cat in listOf("viewpoint", "park", "garden")) q += 1.2
-            if (prefs.style == TripStyle.CITY && cat in listOf("museum", "gallery", "historic", "attraction")) q += 1.0
+            if (cat in listOf("museum", "gallery", "attraction", "viewpoint",
+                    "castle", "fort", "ruins", "palace", "waterfall")) q += 1.4
+            if (prefs.style == TripStyle.NATURE &&
+                cat in listOf("viewpoint", "park", "garden", "nature_reserve", "peak", "waterfall")) q += 1.2
+            if (prefs.style == TripStyle.CITY &&
+                cat in listOf("museum", "gallery", "castle", "palace", "attraction")) q += 1.0
             q -= haversine(center, p.point) / 18.0
             return q
         }
@@ -356,7 +380,10 @@ class TripRepository(context: Context) {
             val date = startDate.plusDays(day.toLong())
             val dayWeather = weather.firstOrNull { it.date == date }
             var clock = if (day == 0) {
-                LocalTime.of(8, 0).plusMinutes(destination.travelMinutes.toLong())
+                destination.trainConnection?.let {
+                    runCatching { java.time.OffsetDateTime.parse(it.arrivalIso).toLocalTime() }
+                        .getOrNull()?.plusMinutes(30)
+                } ?: LocalTime.of(8, 0).plusMinutes(destination.travelMinutes.toLong())
             } else LocalTime.of(9, 0)
             // Reserve stops for later days instead of exhausting the list on day one.
             val count = minOf(if (days == 1) 5 else 4,

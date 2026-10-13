@@ -379,86 +379,143 @@ private fun Choice(label:String, values:List<String>, selected:Int, onSelect:(In
 fun RevealScreen(state: UiState, accept:()->Unit, reroll:()->Unit, back:()->Unit) = Page {
     val trip = state.trip ?: return@Page
     val context = LocalContext.current
-    val overview = state.destinationOverview
-    val hours = trip.destination.travelMinutes / 60
-    val minutes = trip.destination.travelMinutes % 60
-    val travelPrefix = if (trip.destination.routeEstimated) "≈ " else ""
-    val stayText = if (trip.days == 1) "day trip" else
-        (trip.stay?.let { if (it.category.contains("camp")) "camping found" else "stay found" }
-            ?: "stay not found")
-    val highlights = trip.allStops().map { it.place.name }.distinct().take(3)
+    val outbound = trip.destination.trainConnection
+    val isTrain = state.preferences.transport == TransportMode.TRAIN
+    val timeText = when {
+        isTrain && outbound == null -> "Train time not verified"
+        isTrain -> travelText(outbound!!.durationMinutes) + " · scheduled outbound"
+        else -> (if (trip.destination.routeEstimated) "≈ " else "") +
+            travelText(trip.destination.travelMinutes)
+    }
 
-    // Scrolling facts never push the acceptance and reroll actions off screen.
+    // Trip details scroll independently of the always-visible actions.
     Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
         RoloamSectionBar("Discover")
         JourneyHeader(state.preferences.transport)
         DateStamp()
-        Spacer(Modifier.height(20.dp))
-        Text("YOUR NEXT ESCAPE", fontSize=11.sp, fontWeight=FontWeight.Bold, color=RoloamMuted,
-            letterSpacing=1.5.sp)
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(17.dp))
+        Text("YOUR NEXT ESCAPE", fontSize=11.sp, fontWeight=FontWeight.Bold,
+            letterSpacing=1.5.sp, color=RoloamMuted)
+        Spacer(Modifier.height(7.dp))
         BigTitle(trip.destination.name)
         trip.destination.country?.takeIf { it.isNotBlank() }?.let {
-            Text(it, color=RoloamMuted, fontSize=13.sp, modifier=Modifier.padding(top=3.dp))
+            Text(it, color=RoloamMuted, fontSize=13.sp)
         }
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(12.dp))
         Text(
-            "${trip.days} ${if (trip.days == 1) "day" else "days"}  ·  " +
-                travelPrefix + (if (hours > 0) "${hours}h " else "") + "${minutes}m  ·  " +
-                "${trip.destination.distanceKm.roundToInt()} km",
-            fontSize=13.sp, fontWeight=FontWeight.SemiBold
+            "${trip.days} ${if (trip.days == 1) "day" else "days"} · " + timeText,
+            fontSize=14.sp, fontWeight=FontWeight.SemiBold
         )
-        Text(stayText, color=RoloamMuted, fontSize=12.sp, modifier=Modifier.padding(top=4.dp))
-        Spacer(Modifier.height(26.dp))
-        HorizontalDivider(color=RoloamMuted.copy(alpha=.24f))
-        Spacer(Modifier.height(18.dp))
-        Text("ABOUT THE PLACE", fontSize=11.sp, fontWeight=FontWeight.Bold,
-            letterSpacing=1.2.sp, color=RoloamMuted)
-        Spacer(Modifier.height(10.dp))
-        when {
-            overview != null -> {
-                Text(overview.summary, fontSize=14.sp, lineHeight=21.sp,
-                    color=MaterialTheme.colorScheme.onBackground)
-                Spacer(Modifier.height(8.dp))
+        Text(
+            "${trip.destination.distanceKm.roundToInt()} km" +
+                (if (isTrain) " straight-line distance" else " route distance"),
+            color=RoloamMuted, fontSize=12.sp, modifier=Modifier.padding(top=4.dp)
+        )
+        if (isTrain) {
+            outbound?.let {
+                Spacer(Modifier.height(6.dp))
                 Text(
-                    "SOURCE · WIKIPEDIA (CC BY-SA) ↗",
-                    fontSize=11.sp, fontWeight=FontWeight.Bold, color=RoloamMuted,
-                    modifier=Modifier.clickable {
-                        runCatching {
-                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(overview.sourceUrl)))
-                        }
-                    }.padding(vertical=7.dp)
+                    "${trip.startDate.format(DateTimeFormatter.ofPattern("EEE dd MMM"))} · " +
+                        it.departureIso.substring(11, 16) + " → " +
+                        it.arrivalIso.substring(11, 16) + " · " +
+                        "${it.transfers} changes",
+                    color=RoloamMuted, fontSize=12.sp
                 )
             }
-            state.overviewLoading -> {
-                Text("Looking up a verified destination overview…", fontSize=13.sp,
-                    color=RoloamMuted)
-            }
-            else -> {
-                Text("A verified description isn't available for this destination yet.",
-                    fontSize=13.sp, color=RoloamMuted, lineHeight=19.sp)
-            }
+            Text(
+                "CHECK TIMETABLE / RETURN JOURNEY ↗",
+                fontSize=11.sp, color=RoloamMuted, fontWeight=FontWeight.Bold,
+                modifier=Modifier.clickable {
+                    runCatching {
+                        context.startActivity(Intent(Intent.ACTION_VIEW,
+                            Uri.parse("https://www.bahn.de/")))
+                    }
+                }.padding(vertical=8.dp)
+            )
         }
-        Spacer(Modifier.height(24.dp))
-        Text("HIGHLIGHTS ON THIS TRIP", fontSize=11.sp, fontWeight=FontWeight.Bold,
+        Spacer(Modifier.height(20.dp))
+        HorizontalDivider(color=RoloamMuted.copy(alpha=.24f))
+        Spacer(Modifier.height(17.dp))
+        Text("WHAT YOU'LL VISIT", fontSize=11.sp, fontWeight=FontWeight.Bold,
             letterSpacing=1.2.sp, color=RoloamMuted)
-        Spacer(Modifier.height(10.dp))
-        highlights.forEachIndexed { index, name ->
-            Row(Modifier.fillMaxWidth().padding(vertical=5.dp),
-                verticalAlignment=Alignment.Top) {
-                Text("${index + 1}.", fontSize=13.sp, fontWeight=FontWeight.Bold,
-                    color=RoloamMuted, modifier=Modifier.width(27.dp))
-                Text(name, fontSize=14.sp, lineHeight=20.sp,
-                    color=MaterialTheme.colorScheme.onBackground)
+        Spacer(Modifier.height(8.dp))
+        trip.itinerary.forEachIndexed { index, day ->
+            Text(
+                "DAY ${index + 1}  ·  " +
+                    day.date.format(DateTimeFormatter.ofPattern("EEE dd MMM")).uppercase(),
+                fontSize=11.sp, fontWeight=FontWeight.Bold, color=RoloamMuted,
+                modifier=Modifier.padding(top=14.dp, bottom=7.dp)
+            )
+            day.stops.forEach { stop ->
+                Row(
+                    Modifier.fillMaxWidth().clickable {
+                        runCatching {
+                            context.startActivity(Intent(Intent.ACTION_VIEW,
+                                Uri.parse(MapsLinks.place(stop.place.name, stop.place.point))))
+                        }
+                    }.padding(vertical=7.dp),
+                    verticalAlignment=Alignment.Top
+                ) {
+                    Text(stop.time, fontSize=12.sp, color=RoloamMuted,
+                        modifier=Modifier.width(58.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(stop.place.name, fontSize=14.sp,
+                            color=MaterialTheme.colorScheme.onBackground,
+                            fontWeight=FontWeight.Medium)
+                        Text(
+                            stop.place.category.replace('_', ' ') + " · " +
+                                stop.durationMinutes + " min",
+                            fontSize=11.sp, color=RoloamMuted
+                        )
+                    }
+                    Text("↗", color=RoloamMuted, fontSize=13.sp)
+                }
             }
         }
+        Spacer(Modifier.height(17.dp))
+        HorizontalDivider(color=RoloamMuted.copy(alpha=.24f))
         Spacer(Modifier.height(16.dp))
+        Text("WHERE YOU CAN SLEEP", fontSize=11.sp,
+            fontWeight=FontWeight.Bold, letterSpacing=1.2.sp, color=RoloamMuted)
+        Spacer(Modifier.height(8.dp))
+        if (trip.days == 1) {
+            Text("Day trip · no overnight stay needed.", color=RoloamMuted, fontSize=13.sp)
+        } else {
+            val stays = listOfNotNull(trip.stay) + trip.alternativeStays
+            stays.take(4).forEach { stay ->
+                Row(
+                    Modifier.fillMaxWidth().clickable {
+                        runCatching {
+                            context.startActivity(Intent(Intent.ACTION_VIEW,
+                                Uri.parse(MapsLinks.place(stay.name, stay.point))))
+                        }
+                    }.padding(vertical=8.dp),
+                    verticalAlignment=Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(stay.name, fontSize=14.sp, fontWeight=FontWeight.Medium)
+                        Text(
+                            stay.category.replace('_', ' ') + " · " +
+                                "${stay.distanceFromCenterKm.roundToInt()} km from centre" +
+                                (if (stay == trip.stay) " · suggested" else ""),
+                            fontSize=11.sp, color=RoloamMuted
+                        )
+                    }
+                    Text("↗", color=RoloamMuted, fontSize=14.sp)
+                }
+            }
+            Text(
+                "Mapped stays only; availability and prices aren't confirmed.",
+                color=RoloamMuted, fontSize=11.sp,
+                modifier=Modifier.padding(top=8.dp, bottom=4.dp)
+            )
+        }
+        Spacer(Modifier.height(20.dp))
     }
     if (state.rolling) {
         Text("Searching for a different destination…", fontSize=12.sp, color=RoloamMuted)
-        Spacer(Modifier.height(8.dp))
         LinearProgressIndicator(Modifier.fillMaxWidth(), color=RoloamAccent)
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(8.dp))
     }
     state.error?.let {
         Text(it, color=MaterialTheme.colorScheme.error,
@@ -471,7 +528,8 @@ fun RevealScreen(state: UiState, accept:()->Unit, reroll:()->Unit, back:()->Unit
         shape=RoundedCornerShape(18.dp)) {
         Text(if (state.rolling) "FINDING ANOTHER TRIP…" else "REROLL  ↻")
     }
-    Text("‹ back", Modifier.padding(top=12.dp, bottom=5.dp).clickable { back() }, color=RoloamMuted)
+    Text("‹ back", Modifier.padding(top=12.dp, bottom=5.dp).clickable { back() },
+        color=RoloamMuted)
 }
 
 @Composable
@@ -528,9 +586,18 @@ fun PlanScreen(state: UiState, open:(Screen)->Unit, select:(TripStop)->Unit, bac
 
             val rows = buildList {
                 if (dayIndex == 0) {
-                    val t = (if (trip.destination.routeEstimated) "estimated · " else "") +
-                        travelText(trip.destination.travelMinutes)
-                    add(TimelineUi("08:00", "Depart " + trip.originLabel, t, TimelineKind.TRAVEL, null))
+                    val rail = trip.destination.trainConnection
+                    val t = when {
+                        state.preferences.transport == TransportMode.TRAIN && rail == null ->
+                            "Schedule not verified · check DB Navigator"
+                        state.preferences.transport == TransportMode.TRAIN ->
+                            "Scheduled outbound · " + travelText(rail!!.durationMinutes)
+                        else -> (if (trip.destination.routeEstimated) "estimated · " else "") +
+                            travelText(trip.destination.travelMinutes)
+                    }
+                    val departingAt = rail?.departureIso?.takeIf { it.length >= 16 }
+                        ?.substring(11, 16) ?: "08:00"
+                    add(TimelineUi(departingAt, "Depart " + trip.originLabel, t, TimelineKind.TRAVEL, null))
                 }
                 day.stops.forEach { stop ->
                     add(TimelineUi(stop.time, stop.place.name, "~ " + stop.durationMinutes + " min", TimelineKind.PLACE, stop))
@@ -556,9 +623,14 @@ fun PlanScreen(state: UiState, open:(Screen)->Unit, select:(TripStop)->Unit, bac
                     val depart = if (finished == null || finished.isBefore(java.time.LocalTime.of(16, 0)))
                         java.time.LocalTime.of(16, 0) else finished
                     add(TimelineUi(
-                        depart.format(DateTimeFormatter.ofPattern("HH:mm")),
-                        "Return to " + trip.originLabel,
-                        travelText(trip.destination.travelMinutes),
+                        if (state.preferences.transport == TransportMode.TRAIN) "—"
+                        else depart.format(DateTimeFormatter.ofPattern("HH:mm")),
+                        if (state.preferences.transport == TransportMode.TRAIN)
+                            "Check return train to " + trip.originLabel
+                        else "Return to " + trip.originLabel,
+                        if (state.preferences.transport == TransportMode.TRAIN)
+                            "Departure and duration not verified · DB Navigator"
+                        else travelText(trip.destination.travelMinutes),
                         TimelineKind.TRAVEL, null
                     ))
                 }
