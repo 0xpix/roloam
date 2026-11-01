@@ -423,6 +423,16 @@ fun RevealScreen(state: UiState, accept:()->Unit, reroll:()->Unit, back:()->Unit
                 )
             }
             Text(
+                "Timetable: Transitous · Data sources ↗",
+                fontSize=11.sp, color=RoloamMuted,
+                modifier=Modifier.clickable {
+                    runCatching {
+                        context.startActivity(Intent(Intent.ACTION_VIEW,
+                            Uri.parse("https://transitous.org/sources/")))
+                    }
+                }.padding(top=8.dp, bottom=4.dp)
+            )
+            Text(
                 "CHECK TIMETABLE / RETURN JOURNEY ↗",
                 fontSize=11.sp, color=RoloamMuted, fontWeight=FontWeight.Bold,
                 modifier=Modifier.clickable {

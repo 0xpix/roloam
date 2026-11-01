@@ -10,7 +10,7 @@ Roloam is a deliberately small Android app for spontaneous 1–3 day escapes. Th
 - Nearby destinations from OpenStreetMap / Overpass.
 - Real road-time scoring for car trips with OSRM.
 - Bike and walking route-time support through OpenStreetMap routing endpoints.
-- Train trips require a confirmed outbound public-timetable route for the planned date (v6.db.transport.rest); estimated speeds are never shown as booked or verified trains. Return timetable still needs separate confirmation.
+- Train trips require a confirmed outbound public-timetable route for the planned date (Transitous MOTIS 2); estimated speeds are never shown as booked or verified trains. Return timetable still needs separate confirmation.
 - Real attractions, parks, viewpoints and museums from OpenStreetMap.
 - Real campsites, hostels and hotels from OpenStreetMap, with direct website links when available.
 - Destination weather from Open-Meteo.
@@ -45,7 +45,7 @@ Installed beta builds can then discover later prereleases from Settings.
 
 ## Accuracy rules
 
-A rolled trip is now checked for valid map coordinates, distinct real OSM activities on each day, and at least one mapped accommodation for overnight trips. If no candidate passes, Roloam reports the verification failure rather than inventing a stop or stay. Route-table metrics are sanity-checked; estimates are labeled. OSM listings do not confirm businesses are open or accommodation is bookable. Train times are still estimates, not real schedules.
+A rolled trip is now checked for valid map coordinates, distinct real OSM activities on each day, and at least one mapped accommodation for overnight trips. If no candidate passes, Roloam reports the verification failure rather than inventing a stop or stay. Route-table metrics are sanity-checked; estimates are labeled. OSM listings do not confirm businesses are open or accommodation is bookable. Train durations use scheduled outbound connections from Transitous; return connections must be checked separately.
 
 Roloam does **not** invent campsite prices, availability or opening hours. If live data is unavailable, it says so and falls back only for destination discovery rather than fabricating booking information.
 
@@ -56,6 +56,8 @@ The map shows trip order. It is not intended to replace turn-by-turn navigation;
 - OpenStreetMap + Overpass — destinations, POIs, accommodation
 - OSRM / routing.openstreetmap.de — driving, cycling and walking travel times
 - Open-Meteo — forecast context
+
+Train routing uses the volunteer-operated [Transitous](https://transitous.org/api/) service, with [source attribution](https://transitous.org/sources/) linked in the app. Its hosted API is for light, noncommercial open-source use; this beta integration is for prototype testing. Before broader distribution, Roloam needs an explicit open-source license and must meet Transitous's usage policy, or use an independently hosted/licensed routing provider.
 
 ## Build
 

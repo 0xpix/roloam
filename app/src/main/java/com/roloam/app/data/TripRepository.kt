@@ -4,6 +4,9 @@ import android.content.Context
 import com.roloam.app.model.*
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.withTimeout
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalTime
@@ -118,24 +121,36 @@ class TripRepository(context: Context) {
         }
         val remaining = allowed.toMutableList()
         val trials = buildList {
-            repeat(minOf(4, remaining.size)) {
+            repeat(minOf(6, remaining.size)) {
                 val chosen = weightedPick(remaining)
                 add(chosen)
                 remaining.remove(chosen)
             }
         }
         val startDate = nextSaturday(LocalDate.now())
+        var timetableErrors = 0
+        var feasibleTrainConnections = 0
 
         for (candidate in trials) {
+            // A provider outage should not hold the home screen for six timeouts.
+            if (prefs.transport == TransportMode.TRAIN && timetableErrors >= 3) break
             val chosen = if (prefs.transport == TransportMode.TRAIN) {
                 // Validate the departure on the actual trip date. The initial
                 // speed estimate is only for candidate search, never presented.
-                val scheduled = runCatching {
-                    kotlinx.coroutines.withTimeoutOrNull(9_000L) {
-                        trainSource.connection(origin.point, origin.label, candidate, startDate)
+                val scheduled = try {
+                    withTimeout(12_000L) {
+                        trainSource.connection(origin.point, candidate, startDate)
                     }
-                }.getOrNull() ?: continue
+                } catch (error: TimeoutCancellationException) {
+                    timetableErrors++
+                    null
+                } catch (error: Exception) {
+                    if (error is CancellationException) throw error
+                    timetableErrors++
+                    null
+                } ?: continue
                 if (!validTravel(scheduled.durationMinutes, days, prefs.transport)) continue
+                feasibleTrainConnections++
                 candidate.copy(
                     travelMinutes = scheduled.durationMinutes,
                     routeEstimated = false,
@@ -199,8 +214,20 @@ class TripRepository(context: Context) {
         }
 
         if (prefs.transport == TransportMode.TRAIN) {
-            error("Could not verify a feasible train connection and real places for this trip date. " +
-                "Check DB Navigator, change duration, or try again later.")
+            when {
+                feasibleTrainConnections > 0 -> error(
+                    "Train connections were found, but the destinations lacked enough mapped places or stays. " +
+                        "Try another duration or style."
+                )
+                timetableErrors > 0 -> error(
+                    "The train timetable service did not respond for some destinations. " +
+                        "Please try again shortly, or check DB Navigator."
+                )
+                else -> error(
+                    "No train journey within your travel-time limit was found for this date. " +
+                        "Try a longer duration or another transport mode."
+                )
+            }
         }
         error("Could not verify enough real places and accommodation for this trip. " +
             "Try again, change transport, or check your connection.")

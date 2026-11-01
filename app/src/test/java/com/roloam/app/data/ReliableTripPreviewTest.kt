@@ -1,7 +1,5 @@
 package com.roloam.app.data
 
-import com.roloam.app.model.GeoPoint
-import com.roloam.app.model.Destination
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import java.time.LocalDate
@@ -11,46 +9,57 @@ import org.junit.Test
 class ReliableTripPreviewTest {
     private val saturday = LocalDate.of(2026, 10, 17)
 
-    @Test fun parsesScheduledThreeHourTrainJourneyWithTransfer() {
+    @Test fun parsesTransitousThreeHourJourneyWithCorrectBerlinLocalTimes() {
         val json = """
-            {"journeys":[{"legs":[
-                {"departure":"2026-10-17T08:00:00+02:00",
-                 "arrival":"2026-10-17T09:00:00+02:00",
-                 "line":{"mode":"train","product":"regional"}},
-                {"departure":"2026-10-17T09:10:00+02:00",
-                 "arrival":"2026-10-17T11:00:00+02:00",
-                 "line":{"mode":"train","product":"regional"}}
-            ]}]}
+            {"itineraries":[{"startTime":"2026-10-17T06:00:00Z",
+              "endTime":"2026-10-17T09:00:00Z","duration":10800,
+              "transfers":1,"legs":[
+                {"mode":"WALK"}, {"mode":"REGIONAL_RAIL"},
+                {"mode":"WALK"}, {"mode":"HIGHSPEED_RAIL"}, {"mode":"WALK"}
+              ]}]}
         """.trimIndent()
         val adapter = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
-            .adapter(DbJourneyResponse::class.java)
-        val journey = adapter.fromJson(json)!!.journeys.first()
+            .adapter(TransitousPlanResponse::class.java)
+        val journey = adapter.fromJson(json)!!.itineraries.first()
         val verified = TrainJourneyParser.verify(journey, saturday)!!
         assertEquals(180, verified.durationMinutes)
         assertEquals(1, verified.transfers)
-        assertEquals("DB timetable", verified.provider)
+        assertEquals("Transitous timetable", verified.provider)
+        assertEquals("08:00", verified.departureIso.substring(11, 16))
+        assertEquals("11:00", verified.arrivalIso.substring(11, 16))
     }
 
     @Test fun busOnlyJourneyIsNotRepresentedAsTrain() {
-        val bus = DbJourney(listOf(
-            DbJourneyLeg("2026-10-17T08:00:00+02:00",
-                arrival="2026-10-17T11:00:00+02:00",
-                line=DbJourneyLine("bus", "bus"))
-        ))
+        val bus = TransitousItinerary(
+            "2026-10-17T06:00:00Z", "2026-10-17T09:00:00Z",
+            legs = listOf(TransitousLeg("WALK"), TransitousLeg("BUS"), TransitousLeg("TRAM"))
+        )
         assertNull(TrainJourneyParser.verify(bus, saturday))
     }
 
-    @Test fun rejectsWrongDateAndBadTimes() {
-        val valid = DbJourney(listOf(DbJourneyLeg(
-            "2026-10-17T08:00:00+02:00",
-            arrival="2026-10-17T11:00:00+02:00",
-            line=DbJourneyLine("train","nationalExpress")
-        )))
+    @Test fun rejectsWrongDateBadTimesAndCancelledLeg() {
+        val valid = TransitousItinerary(
+            "2026-10-17T06:00:00Z", "2026-10-17T09:00:00Z",
+            legs = listOf(TransitousLeg("REGIONAL_RAIL"))
+        )
         assertNull(TrainJourneyParser.verify(valid, saturday.plusDays(1)))
-        val invalid = valid.copy(legs=listOf(valid.legs.first().copy(
-            arrival="2026-10-17T07:30:00+02:00"
-        )))
+        val invalid = valid.copy(endTime="2026-10-17T05:30:00Z")
         assertNull(TrainJourneyParser.verify(invalid, saturday))
+        assertNull(TrainJourneyParser.verify(valid.copy(
+            legs = listOf(TransitousLeg("REGIONAL_RAIL", cancelled = true))
+        ), saturday))
+    }
+
+    @Test fun handlesWinterTimeAndMidnightUtcWithoutShiftingTravelDate() {
+        val winter = LocalDate.of(2026, 11, 7)
+        val valid = TransitousItinerary(
+            "2026-11-06T23:30:00Z", "2026-11-07T01:30:00Z",
+            transfers = 0, legs = listOf(TransitousLeg("SUBURBAN"))
+        )
+        val verified = TrainJourneyParser.verify(valid, winter)!!
+        assertEquals(120, verified.durationMinutes)
+        assertEquals("00:30", verified.departureIso.substring(11, 16))
+        assertEquals("02:30", verified.arrivalIso.substring(11, 16))
     }
 
     @Test fun filtersNamedGravesAndMilestonesButKeepsTouristSites() {

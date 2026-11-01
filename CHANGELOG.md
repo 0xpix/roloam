@@ -1,5 +1,14 @@
 # Roloam changelog
 
+## 0.11.1-beta — Restore train trips
+
+- Switch train journey verification from the unavailable DB REST proxy to Transitous MOTIS 2 scheduled routing.
+- Convert timetable timestamps into Berlin local time, including daylight-saving changes, before showing departure, arrival and starting the itinerary.
+- Reject walking-only, bus-only, cancelled, invalid-date and implausible train journeys; never substitute guessed train times.
+- Try up to six destination candidates and distinguish timetable outages, travel-time limits and missing mapped attractions or stays in error messages.
+- Add attribution and a link to the timetable's data sources, plus regression tests for real MOTIS response structure and time zones.
+- The return train still requires separate confirmation; public feeds and mapped lodging are best-effort and do not guarantee bookability.
+
 ## 0.11.0-beta — Real journeys, useful destinations
 
 - Replace the Wikipedia history paragraph with a real day-by-day itinerary, mapped attractions, and suggested camping/hostel options before accepting a trip.
