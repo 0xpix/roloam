@@ -12,11 +12,15 @@ import com.roloam.app.model.*
 import com.roloam.app.update.BetaUpdate
 import com.roloam.app.update.BetaUpdateManager
 import com.roloam.app.update.UpdateCheck
+import android.util.Log
 import java.io.File
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 
 enum class Screen { HOME, PREFERENCES, SETTINGS, REVEAL, PLAN, MAP, STAY, PLACE, NOW, WEATHER, PACKING }
 
@@ -25,6 +29,7 @@ data class UiState(
     val preferences: TripPreferences = TripPreferences(),
     val origin: Origin = Origin("Heidelberg", GeoPoint(49.3988, 8.6724), true),
     val rolling: Boolean = false,
+    val previewDestination: Destination? = null,
     val replacingPlace: Boolean = false,
     val trip: TripPlan? = null,
     val destinationOverview: DestinationOverview? = null,
@@ -95,18 +100,32 @@ class RoloamViewModel(app: Application) : AndroidViewModel(app) {
         val preferences = _state.value.preferences
         viewModelScope.launch {
             _state.value = _state.value.copy(
-                rolling = true, destinationOverview = null, overviewLoading = false, error = null
+                rolling = true, previewDestination = null,
+                destinationOverview = null, overviewLoading = false, error = null
             )
-            runCatching { trips.roll(origin, preferences) }
-                .onSuccess { plan ->
-                    _state.value = _state.value.copy(
-                        rolling = false, trip = plan, screen = Screen.REVEAL,
-                        destinationOverview = null, overviewLoading = false
-                    )
+            val started = android.os.SystemClock.elapsedRealtime()
+            try {
+                val plan = withTimeout(35_000L) {
+                    trips.roll(origin, preferences) { candidate ->
+                        _state.value = _state.value.copy(previewDestination = candidate)
+                    }
                 }
-                .onFailure { t ->
-                    _state.value = _state.value.copy(rolling = false, error = t.message ?: "Could not build a trip")
-                }
+                Log.d("RoloamDiscovery", "Verified trip in ${android.os.SystemClock.elapsedRealtime() - started}ms")
+                _state.value = _state.value.copy(
+                    rolling = false, previewDestination = null, trip = plan, screen = Screen.REVEAL,
+                    destinationOverview = null, overviewLoading = false
+                )
+            } catch (error: TimeoutCancellationException) {
+                Log.w("RoloamDiscovery", "Discovery timed out after ${android.os.SystemClock.elapsedRealtime() - started}ms")
+                _state.value = _state.value.copy(rolling = false, previewDestination = null,
+                    error = "Live trip checks took too long. Please try again or change transport.")
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                Log.w("RoloamDiscovery", "Discovery failed after ${android.os.SystemClock.elapsedRealtime() - started}ms", error)
+                _state.value = _state.value.copy(rolling = false, previewDestination = null,
+                    error = error.message ?: "Could not build a trip")
+            }
         }
     }
 

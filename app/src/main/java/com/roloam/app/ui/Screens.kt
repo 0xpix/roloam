@@ -164,10 +164,16 @@ fun HomeScreen(state: UiState, open:(Screen)->Unit, roll:()->Unit, resume:()->Un
     JourneyHeader(state.preferences.transport, !state.rolling)
     DateStamp()
     Spacer(Modifier.height(20.dp))
-    BigTitle(if (state.rolling) "Rolling..." else LocalDate.now().dayOfWeek.name.lowercase().replaceFirstChar { it.uppercase() } + ".")
+    BigTitle(if (state.rolling) state.previewDestination?.name ?: "Rolling..." else LocalDate.now().dayOfWeek.name.lowercase().replaceFirstChar { it.uppercase() } + ".")
     Spacer(Modifier.height(18.dp))
     if (state.rolling) {
-        Text("Finding somewhere worth going.\nChecking the route, weather and places to stay.", lineHeight=24.sp)
+        Text(if (state.previewDestination == null)
+            "Finding somewhere worth going…" else
+            "A possible escape. Checking real routes, attractions and places to stay before offering this trip.",
+            lineHeight=24.sp)
+        Spacer(Modifier.height(12.dp))
+        Text("Preview only · journey and accommodation not yet verified",
+            fontSize=11.sp, color=RoloamMuted)
         Spacer(Modifier.weight(1f))
         LinearProgressIndicator(Modifier.fillMaxWidth(), color=RoloamAccent)
         Spacer(Modifier.height(26.dp))
@@ -273,7 +279,8 @@ private fun ColumnScope.ActiveTripHome(
 
     Spacer(Modifier.weight(1f))
     if(state.rolling) {
-        Text("Finding another adventure…",color=RoloamMuted,fontSize=12.sp)
+        Text(state.previewDestination?.let { "Checking ${it.name}…" } ?:
+            "Finding another adventure…",color=RoloamMuted,fontSize=12.sp)
         Spacer(Modifier.height(8.dp))
         LinearProgressIndicator(Modifier.fillMaxWidth(),color=RoloamAccent)
     }
@@ -523,7 +530,8 @@ fun RevealScreen(state: UiState, accept:()->Unit, reroll:()->Unit, back:()->Unit
         Spacer(Modifier.height(20.dp))
     }
     if (state.rolling) {
-        Text("Searching for a different destination…", fontSize=12.sp, color=RoloamMuted)
+        Text(state.previewDestination?.let { "Checking ${it.name} · itinerary not yet verified" }
+            ?: "Searching for a different destination…", fontSize=12.sp, color=RoloamMuted)
         LinearProgressIndicator(Modifier.fillMaxWidth(), color=RoloamAccent)
         Spacer(Modifier.height(8.dp))
     }

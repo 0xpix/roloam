@@ -9,15 +9,22 @@ import com.roloam.app.model.WeatherHour
 import com.squareup.moshi.Json
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeout
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
 import java.io.File
+import java.io.IOException
 import java.time.LocalDate
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import kotlin.math.*
 
 class Network(private val context: Context) {
@@ -38,7 +45,7 @@ class Network(private val context: Context) {
         return request(Request.Builder().url(url).post(body).build())
     }
 
-    private suspend fun request(request: Request): String = withContext(Dispatchers.IO) {
+    private suspend fun request(request: Request): String {
         var last: Throwable? = null
         repeat(2) { attempt ->
             try {
@@ -46,12 +53,30 @@ class Network(private val context: Context) {
                     .header("User-Agent", "Roloam/0.1 Android; contact via github.com/0xpix/roloam")
                     .header("Accept", "application/json")
                     .build()
-                client.newCall(req).execute().use { response ->
-                    if (!response.isSuccessful) error("HTTP " + response.code)
-                    return@withContext response.body?.string() ?: error("Empty response")
+                return suspendCancellableCoroutine { continuation ->
+                    val call = client.newCall(req)
+                    continuation.invokeOnCancellation { call.cancel() }
+                    call.enqueue(object : Callback {
+                        override fun onFailure(call: Call, e: IOException) {
+                            if (continuation.isActive) continuation.resumeWithException(e)
+                        }
+
+                        override fun onResponse(call: Call, response: Response) {
+                            try {
+                                response.use {
+                                    if (!it.isSuccessful) throw IOException("HTTP ${it.code}")
+                                    val body = it.body?.string() ?: throw IOException("Empty response")
+                                    if (continuation.isActive) continuation.resume(body)
+                                }
+                            } catch (error: Exception) {
+                                if (continuation.isActive) continuation.resumeWithException(error)
+                            }
+                        }
+                    })
                 }
-            } catch (t: Throwable) {
-                last = t
+            } catch (error: Exception) {
+                if (error is CancellationException) throw error
+                last = error
                 if (attempt == 0) delay(450)
             }
         }
@@ -137,9 +162,12 @@ class LiveDataSource(private val network: Network) {
             "https://overpass.private.coffee/api/interpreter"
         )) {
             try {
-                val response = overpassAdapter.fromJson(network.postForm(endpoint, "data", query))
+                val response = withTimeout(7_000L) {
+                    overpassAdapter.fromJson(network.postForm(endpoint, "data", query))
+                }
                 if (response != null) return response
             } catch (error: Exception) {
+                if (error is CancellationException && error !is kotlinx.coroutines.TimeoutCancellationException) throw error
                 lastError = error
             }
         }
