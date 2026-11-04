@@ -2,18 +2,22 @@ package com.roloam.app.ui
 
 import android.content.Intent
 import android.net.Uri
+import android.app.Activity
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.view.WindowCompat
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -225,45 +229,124 @@ fun HomeScreen(state: UiState, open:(Screen)->Unit, roll:()->Unit, resume:()->Un
 }
 
 @Composable
-fun DestinationScreen(state: UiState, approve: () -> Unit, reroll: () -> Unit, back: () -> Unit) = Page {
-    val destination = state.previewDestination ?: return@Page
+fun DestinationScreen(state: UiState, approve: () -> Unit, reroll: () -> Unit, back: () -> Unit) {
+    val destination = state.previewDestination ?: return
     var scrambling by remember(state.rollSequence) { mutableStateOf(true) }
-    RoloamSectionBar("Destination")
-    JourneyHeader(state.preferences.transport, !state.rolling)
-    Spacer(Modifier.weight(1f))
-    Text(if (scrambling) "ROLLING DESTINATION…" else "YOUR RANDOM DESTINATION",
-        fontSize=11.sp, fontWeight=FontWeight.Bold,
-        letterSpacing=1.5.sp, color=RoloamMuted)
-    Spacer(Modifier.height(10.dp))
-    ScramblingDestinationName(destination.name, state.rollSequence) { scrambling = false }
-    destination.country?.let {
-        Spacer(Modifier.height(8.dp))
-        Text(it, color=RoloamMuted, fontSize=14.sp)
+    val activity = LocalContext.current as? Activity
+    // This page intentionally stays ivory even if the system uses dark mode.
+    DisposableEffect(activity) {
+        val controller = activity?.let { WindowCompat.getInsetsController(it.window, it.window.decorView) }
+        val previousStatus = controller?.isAppearanceLightStatusBars
+        val previousNavigation = controller?.isAppearanceLightNavigationBars
+        controller?.isAppearanceLightStatusBars = true
+        controller?.isAppearanceLightNavigationBars = true
+        onDispose {
+            if (previousStatus != null) controller?.isAppearanceLightStatusBars = previousStatus
+            if (previousNavigation != null) controller?.isAppearanceLightNavigationBars = previousNavigation
+        }
     }
-    Spacer(Modifier.height(14.dp))
-    Text("Picked at random. No routes, places or stays checked yet.",
-        color=RoloamMuted, fontSize=13.sp, lineHeight=21.sp)
-    Spacer(Modifier.weight(1f))
-    if (state.rolling) {
-        Text("Now checking routes, things to do and places to stay…",
-            color=RoloamMuted, fontSize=12.sp)
-        Spacer(Modifier.height(8.dp))
-        LinearProgressIndicator(Modifier.fillMaxWidth(), color=RoloamAccent)
-        Spacer(Modifier.height(16.dp))
+    val ink = Color(0xFF292924)
+    val mutedInk = Color(0xFF8C8B82)
+    val ivory = Color(0xFFFAF8F2)
+    Surface(modifier=Modifier.fillMaxSize(), color=ivory) {
+        Column(
+            Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()
+                .padding(horizontal=25.dp, vertical=14.dp)
+        ) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement=Arrangement.SpaceBetween,
+                verticalAlignment=Alignment.CenterVertically
+            ) {
+                Text(
+                    "‹", modifier=Modifier.clickable { back() }.padding(end=12.dp),
+                    fontFamily=RoloamFonts.geistMono, fontSize=27.sp, color=ink
+                )
+                Text(
+                    "roloam.", fontFamily=RoloamFonts.geistMono,
+                    fontSize=17.sp, fontWeight=FontWeight.Bold, color=ink
+                )
+                Text(
+                    "BETA", fontFamily=RoloamFonts.geistMono,
+                    fontSize=10.sp, letterSpacing=1.4.sp, color=mutedInk
+                )
+            }
+            Spacer(Modifier.weight(1f))
+            Column(
+                Modifier.fillMaxWidth(), horizontalAlignment=Alignment.CenterHorizontally
+            ) {
+                Text(
+                    if (scrambling) "ROLLING…" else "SOMEWHERE NEW",
+                    fontFamily=RoloamFonts.geistMono, fontSize=10.sp,
+                    fontWeight=FontWeight.Bold, letterSpacing=2.sp, color=mutedInk
+                )
+                Spacer(Modifier.height(18.dp))
+                ScramblingDestinationName(
+                    destination.name, state.rollSequence, state.destinationFont, ink
+                ) { scrambling = false }
+                destination.country?.let {
+                    Spacer(Modifier.height(9.dp))
+                    Text(it, fontFamily=RoloamFonts.geistMono, fontSize=13.sp, color=mutedInk)
+                }
+                Spacer(Modifier.height(15.dp))
+                Text(
+                    "A place, picked at random.",
+                    fontFamily=RoloamFonts.geistMono, fontSize=12.sp, color=mutedInk
+                )
+            }
+            Spacer(Modifier.weight(1f))
+            if (state.rolling) {
+                Text(
+                    "Finding the next place…", fontFamily=RoloamFonts.geistMono,
+                    fontSize=12.sp, color=mutedInk
+                )
+                Spacer(Modifier.height(8.dp))
+                LinearProgressIndicator(Modifier.fillMaxWidth(), color=ink)
+                Spacer(Modifier.height(18.dp))
+            }
+            state.error?.let {
+                Text(it, fontSize=12.sp, color=Color(0xFFAE534C),
+                    modifier=Modifier.padding(bottom=16.dp))
+            }
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement=Arrangement.SpaceEvenly,
+                verticalAlignment=Alignment.CenterVertically
+            ) {
+                Column(horizontalAlignment=Alignment.CenterHorizontally) {
+                    OutlinedButton(
+                        onClick=reroll, enabled=!state.rolling,
+                        modifier=Modifier.size(62.dp), shape=CircleShape,
+                        contentPadding=PaddingValues(0.dp),
+                        border=BorderStroke(1.dp, mutedInk)
+                    ) {
+                        Text("↻", fontSize=26.sp, color=ink)
+                    }
+                    Spacer(Modifier.height(13.dp))
+                    Text(
+                        "ROLL AGAIN", fontFamily=RoloamFonts.geistMono,
+                        fontSize=10.sp, letterSpacing=1.sp, color=mutedInk
+                    )
+                }
+                Column(horizontalAlignment=Alignment.CenterHorizontally) {
+                    Button(
+                        onClick=approve, enabled=!state.rolling && !scrambling,
+                        modifier=Modifier.size(62.dp), shape=CircleShape,
+                        contentPadding=PaddingValues(0.dp),
+                        colors=ButtonDefaults.buttonColors(containerColor=ink, contentColor=ivory)
+                    ) {
+                        Text("→", fontSize=25.sp)
+                    }
+                    Spacer(Modifier.height(13.dp))
+                    Text(
+                        "SHOW DETAILS", fontFamily=RoloamFonts.geistMono,
+                        fontSize=10.sp, letterSpacing=1.sp, color=mutedInk
+                    )
+                }
+            }
+            Spacer(Modifier.height(25.dp))
+        }
     }
-    state.error?.let {
-        Text(it, color=MaterialTheme.colorScheme.error,
-            modifier=Modifier.padding(bottom=12.dp))
-    }
-    PrimaryButton("Show trip details", enabled=!state.rolling && !scrambling, onClick=approve)
-    Spacer(Modifier.height(10.dp))
-    OutlinedButton(onClick=reroll, enabled=!state.rolling,
-        modifier=Modifier.fillMaxWidth().height(54.dp),
-        shape=RoundedCornerShape(18.dp)) {
-        Text("ROLL AGAIN  ↻", fontWeight=FontWeight.Bold)
-    }
-    Text("‹ back", Modifier.padding(top=14.dp, bottom=10.dp).clickable { back() },
-        color=RoloamMuted)
 }
 
 @Composable

@@ -7,14 +7,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import com.roloam.app.model.DestinationFont
 import kotlinx.coroutines.delay
 import kotlin.random.Random
 
@@ -46,7 +45,13 @@ internal object DestinationScrambleFrames {
 
 /** A slot-machine-like reveal with no vertical movement: glyphs mutate in place. */
 @Composable
-fun ScramblingDestinationName(destination: String, rollSequence: Long, onFinished: () -> Unit) {
+fun ScramblingDestinationName(
+    destination: String,
+    rollSequence: Long,
+    fontChoice: DestinationFont,
+    textColor: Color,
+    onFinished: () -> Unit
+) {
     var display by remember(destination, rollSequence) {
         mutableStateOf(DestinationScrambleFrames.frame(destination, 0, Random.Default))
     }
@@ -73,11 +78,11 @@ fun ScramblingDestinationName(destination: String, rollSequence: Long, onFinishe
     Text(
         display,
         modifier = Modifier.clearAndSetSemantics { contentDescription = "Random destination: $destination" },
-        fontFamily = FontFamily.Monospace,
+        fontFamily = RoloamFonts.forDestination(fontChoice),
         fontSize = 36.sp,
         lineHeight = 41.sp,
-        fontWeight = FontWeight.Black,
+        fontWeight = RoloamFonts.destinationWeight(fontChoice),
         letterSpacing = (-1.3).sp,
-        color = MaterialTheme.colorScheme.onBackground
+        color = textColor
     )
 }

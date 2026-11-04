@@ -43,13 +43,13 @@ fun RoloamApp(vm: RoloamViewModel) {
             )
         },
         typography = MaterialTheme.typography.copy(
-            displayLarge = MaterialTheme.typography.displayLarge.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
-            headlineLarge = MaterialTheme.typography.headlineLarge.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
-            headlineMedium = MaterialTheme.typography.headlineMedium.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
-            titleLarge = MaterialTheme.typography.titleLarge.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
-            bodyLarge = MaterialTheme.typography.bodyLarge.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
-            bodyMedium = MaterialTheme.typography.bodyMedium.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
-            labelLarge = MaterialTheme.typography.labelLarge.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+            displayLarge = MaterialTheme.typography.displayLarge.copy(fontFamily = RoloamFonts.geistMono),
+            headlineLarge = MaterialTheme.typography.headlineLarge.copy(fontFamily = RoloamFonts.geistMono),
+            headlineMedium = MaterialTheme.typography.headlineMedium.copy(fontFamily = RoloamFonts.geistMono),
+            titleLarge = MaterialTheme.typography.titleLarge.copy(fontFamily = RoloamFonts.geistMono),
+            bodyLarge = MaterialTheme.typography.bodyLarge.copy(fontFamily = RoloamFonts.geistMono),
+            bodyMedium = MaterialTheme.typography.bodyMedium.copy(fontFamily = RoloamFonts.geistMono),
+            labelLarge = MaterialTheme.typography.labelLarge.copy(fontFamily = RoloamFonts.geistMono)
         )
     ) {
         CompositionLocalProvider(LocalGoHome provides vm::goHome) {
@@ -62,7 +62,8 @@ fun RoloamApp(vm: RoloamViewModel) {
                 back = vm::back,
                 checkUpdate = vm::checkForBetaUpdate,
                 downloadUpdate = vm::downloadBetaUpdate,
-                installUpdate = vm::installBetaUpdate
+                installUpdate = vm::installBetaUpdate,
+                changeDestinationFont = vm::updateDestinationFont
             )
             Screen.DESTINATION -> DestinationScreen(state, vm::approveDestination, vm::roll, vm::back)
             Screen.REVEAL -> RevealScreen(state, vm::acceptTrip, vm::roll, vm::back)

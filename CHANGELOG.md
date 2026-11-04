@@ -1,5 +1,15 @@
 # Roloam changelog
 
+## 0.15.0-beta — Choose your destination lettering
+
+- Bundle Doto Black and Geist Mono locally, with their open font licenses, so both display styles work offline.
+- Add a Settings → Typography choice with live previews: Doto's dot-matrix look or the cleaner Geist Mono.
+- Save the font choice on the device and apply it to the character-by-character destination reveal, including rerolls.
+- Use Geist Mono for surrounding interface text so detail lists and controls stay readable in either mode.
+- Refresh the destination reveal with the Soft Ink layout: warm ivory canvas, centered destination, and compact circular reroll/continue actions.
+- Keep the two-step discovery flow unchanged: roll instantly first, request trip details only after approval.
+
+
 ## 0.14.0-beta — Letter-by-letter destination reveal
 
 - Rolling displays changing symbols and letters in place, then locks the selected destination name character by character from left to right.
