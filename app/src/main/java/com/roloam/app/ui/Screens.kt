@@ -227,13 +227,15 @@ fun HomeScreen(state: UiState, open:(Screen)->Unit, roll:()->Unit, resume:()->Un
 @Composable
 fun DestinationScreen(state: UiState, approve: () -> Unit, reroll: () -> Unit, back: () -> Unit) = Page {
     val destination = state.previewDestination ?: return@Page
+    var scrambling by remember(state.rollSequence) { mutableStateOf(true) }
     RoloamSectionBar("Destination")
     JourneyHeader(state.preferences.transport, !state.rolling)
     Spacer(Modifier.weight(1f))
-    Text("YOUR RANDOM DESTINATION", fontSize=11.sp, fontWeight=FontWeight.Bold,
+    Text(if (scrambling) "ROLLING DESTINATION…" else "YOUR RANDOM DESTINATION",
+        fontSize=11.sp, fontWeight=FontWeight.Bold,
         letterSpacing=1.5.sp, color=RoloamMuted)
     Spacer(Modifier.height(10.dp))
-    BigTitle(destination.name)
+    ScramblingDestinationName(destination.name, state.rollSequence) { scrambling = false }
     destination.country?.let {
         Spacer(Modifier.height(8.dp))
         Text(it, color=RoloamMuted, fontSize=14.sp)
@@ -253,7 +255,7 @@ fun DestinationScreen(state: UiState, approve: () -> Unit, reroll: () -> Unit, b
         Text(it, color=MaterialTheme.colorScheme.error,
             modifier=Modifier.padding(bottom=12.dp))
     }
-    PrimaryButton("Show trip details", enabled=!state.rolling, onClick=approve)
+    PrimaryButton("Show trip details", enabled=!state.rolling && !scrambling, onClick=approve)
     Spacer(Modifier.height(10.dp))
     OutlinedButton(onClick=reroll, enabled=!state.rolling,
         modifier=Modifier.fillMaxWidth().height(54.dp),

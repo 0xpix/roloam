@@ -1,5 +1,14 @@
 # Roloam changelog
 
+## 0.14.0-beta — Letter-by-letter destination reveal
+
+- Rolling displays changing symbols and letters in place, then locks the selected destination name character by character from left to right.
+- Rerolling restarts the animation even when the same destination is selected; previous animations cancel automatically.
+- Preserve spaces, hyphens and accented names during the reveal, with no sliding or vertical slot reel.
+- The selected destination is still picked instantly and offline; route, train and attraction lookups begin only after approving the fully revealed name.
+- Screen readers receive the actual destination name rather than rapidly changing symbols.
+
+
 ## 0.13.0-beta — Destination first
 
 - Roll instantly picks a random nearby city using only the offline destination index. No route, train, weather, campsite or attraction requests occur when rolling.

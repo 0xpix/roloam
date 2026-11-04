@@ -31,6 +31,7 @@ data class UiState(
     val origin: Origin = Origin("Heidelberg", GeoPoint(49.3988, 8.6724), true),
     val rolling: Boolean = false,
     val previewDestination: Destination? = null,
+    val rollSequence: Long = 0,
     val replacingPlace: Boolean = false,
     val trip: TripPlan? = null,
     val destinationOverview: DestinationOverview? = null,
@@ -105,6 +106,7 @@ class RoloamViewModel(app: Application) : AndroidViewModel(app) {
             val pick = trips.pickDestination(_state.value.origin, _state.value.preferences)
             _state.value = _state.value.copy(
                 screen = Screen.DESTINATION, previewDestination = pick, trip = null,
+                rollSequence = _state.value.rollSequence + 1,
                 destinationOverview = null, overviewLoading = false, error = null
             )
         } catch (error: Exception) {
