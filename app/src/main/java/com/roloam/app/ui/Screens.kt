@@ -180,7 +180,7 @@ fun HomeScreen(state: UiState, open:(Screen)->Unit, roll:()->Unit, resume:()->Un
     } else {
         val durationText = when(state.preferences.duration){DurationChoice.ONE->"1 day";DurationChoice.TWO->"2 days";DurationChoice.THREE->"3 days";DurationChoice.AUTO->"a few days"}
         Text(
-            "Next free weekend detected.\nWeather decides the rhythm.\nYou could disappear for " + durationText + ".",
+            "One random destination.\nNo planning until you choose it.\nGo somewhere for " + durationText + ".",
             lineHeight = 24.sp
         )
         Spacer(Modifier.height(8.dp))
@@ -222,6 +222,46 @@ fun HomeScreen(state: UiState, open:(Screen)->Unit, roll:()->Unit, resume:()->Un
         }
         Spacer(Modifier.height(12.dp))
     }
+}
+
+@Composable
+fun DestinationScreen(state: UiState, approve: () -> Unit, reroll: () -> Unit, back: () -> Unit) = Page {
+    val destination = state.previewDestination ?: return@Page
+    RoloamSectionBar("Destination")
+    JourneyHeader(state.preferences.transport, !state.rolling)
+    Spacer(Modifier.weight(1f))
+    Text("YOUR RANDOM DESTINATION", fontSize=11.sp, fontWeight=FontWeight.Bold,
+        letterSpacing=1.5.sp, color=RoloamMuted)
+    Spacer(Modifier.height(10.dp))
+    BigTitle(destination.name)
+    destination.country?.let {
+        Spacer(Modifier.height(8.dp))
+        Text(it, color=RoloamMuted, fontSize=14.sp)
+    }
+    Spacer(Modifier.height(14.dp))
+    Text("Picked at random. No routes, places or stays checked yet.",
+        color=RoloamMuted, fontSize=13.sp, lineHeight=21.sp)
+    Spacer(Modifier.weight(1f))
+    if (state.rolling) {
+        Text("Now checking routes, things to do and places to stay…",
+            color=RoloamMuted, fontSize=12.sp)
+        Spacer(Modifier.height(8.dp))
+        LinearProgressIndicator(Modifier.fillMaxWidth(), color=RoloamAccent)
+        Spacer(Modifier.height(16.dp))
+    }
+    state.error?.let {
+        Text(it, color=MaterialTheme.colorScheme.error,
+            modifier=Modifier.padding(bottom=12.dp))
+    }
+    PrimaryButton("Show trip details", enabled=!state.rolling, onClick=approve)
+    Spacer(Modifier.height(10.dp))
+    OutlinedButton(onClick=reroll, enabled=!state.rolling,
+        modifier=Modifier.fillMaxWidth().height(54.dp),
+        shape=RoundedCornerShape(18.dp)) {
+        Text("ROLL AGAIN  ↻", fontWeight=FontWeight.Bold)
+    }
+    Text("‹ back", Modifier.padding(top=14.dp, bottom=10.dp).clickable { back() },
+        color=RoloamMuted)
 }
 
 @Composable
@@ -419,6 +459,10 @@ fun RevealScreen(state: UiState, accept:()->Unit, reroll:()->Unit, back:()->Unit
             color=RoloamMuted, fontSize=12.sp, modifier=Modifier.padding(top=4.dp)
         )
         if (isTrain) {
+            if (outbound == null) {
+                Text("No train connection confirmed. Suggested stops have no scheduled times.",
+                    color=RoloamMuted, fontSize=12.sp, modifier=Modifier.padding(top=7.dp))
+            }
             outbound?.let {
                 Spacer(Modifier.height(6.dp))
                 Text(
@@ -456,6 +500,10 @@ fun RevealScreen(state: UiState, accept:()->Unit, reroll:()->Unit, back:()->Unit
         Text("WHAT YOU'LL VISIT", fontSize=11.sp, fontWeight=FontWeight.Bold,
             letterSpacing=1.2.sp, color=RoloamMuted)
         Spacer(Modifier.height(8.dp))
+        if (trip.itinerary.all { it.stops.isEmpty() }) {
+            Text("No mapped attractions available right now. Your destination is still yours.",
+                color=RoloamMuted, fontSize=12.sp)
+        }
         trip.itinerary.forEachIndexed { index, day ->
             Text(
                 "DAY ${index + 1}  ·  " +
@@ -499,6 +547,10 @@ fun RevealScreen(state: UiState, accept:()->Unit, reroll:()->Unit, back:()->Unit
             Text("Day trip · no overnight stay needed.", color=RoloamMuted, fontSize=13.sp)
         } else {
             val stays = listOfNotNull(trip.stay) + trip.alternativeStays
+            if (stays.isEmpty()) {
+                Text("No mapped accommodation found. Availability has not been confirmed.",
+                    color=RoloamMuted, fontSize=12.sp)
+            }
             stays.take(4).forEach { stay ->
                 Row(
                     Modifier.fillMaxWidth().clickable {

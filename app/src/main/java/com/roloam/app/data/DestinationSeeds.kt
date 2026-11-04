@@ -1,6 +1,7 @@
 package com.roloam.app.data
 
 import com.roloam.app.model.GeoPoint
+import kotlin.random.Random
 
 /**
  * Small, offline discovery index. These are real city-centre coordinates, not
@@ -86,4 +87,13 @@ object DestinationSeeds {
 
     fun nearby(origin: GeoPoint, radiusKm: Int): List<CityRaw> =
         cities.filter { haversine(origin, it.point) <= radiusKm.toDouble() }
+
+    /** Uniform random draw, preferring unseen places over repeated suggestions. */
+    fun pick(options: List<CityRaw>, recent: Collection<String>, random: Random): CityRaw? {
+        val fresh = options.filterNot { it.name.lowercase() in recent }
+        val choices = fresh.ifEmpty {
+            options.filterNot { it.name.lowercase() == recent.firstOrNull() }
+        }.ifEmpty { options }
+        return choices.randomOrNull(random)
+    }
 }

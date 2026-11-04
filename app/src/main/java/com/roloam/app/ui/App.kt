@@ -64,6 +64,7 @@ fun RoloamApp(vm: RoloamViewModel) {
                 downloadUpdate = vm::downloadBetaUpdate,
                 installUpdate = vm::installBetaUpdate
             )
+            Screen.DESTINATION -> DestinationScreen(state, vm::approveDestination, vm::roll, vm::back)
             Screen.REVEAL -> RevealScreen(state, vm::acceptTrip, vm::roll, vm::back)
             Screen.PLAN -> PlanScreen(state, vm::open, vm::selectStop, vm::back)
             Screen.MAP -> MapScreen(state, vm::back, vm::suggestReplacement)

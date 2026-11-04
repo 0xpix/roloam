@@ -7,8 +7,8 @@ Roloam is a deliberately small Android app for spontaneous 1–3 day escapes. Th
 ## Android MVP
 
 - Phone location when permission is granted; Heidelberg is the safe demo fallback.
-- Nearby destinations from OpenStreetMap / Overpass.
-- Instant provisional destination names from a bundled offline index near supported German and border cities; live route/POI verification still follows before a trip is offered.
+- Instant random destinations from a bundled offline index near supported German and border cities, without network requests on roll.
+- Live routes, train timetables, mapped attractions, stays and forecast are fetched **only after the user approves the destination**.
 - Real road-time scoring for car trips with OSRM.
 - Bike and walking route-time support through OpenStreetMap routing endpoints.
 - Train trips require a confirmed outbound public-timetable route for the planned date (Transitous MOTIS 2); estimated speeds are never shown as booked or verified trains. Return timetable still needs separate confirmation.
@@ -16,8 +16,8 @@ Roloam is a deliberately small Android app for spontaneous 1–3 day escapes. Th
 - Real campsites, hostels and hotels from OpenStreetMap, with direct website links when available.
 - Destination weather from Open-Meteo.
 - A compact itinerary engine that balances route distance, place type, weather and useful time-of-day.
-- A bounded discovery pipeline: limited parallel route and destination checks, cancellable HTTP requests and a 35-second overall timeout for unresponsive public services.
-- Minimal screens: Home → Roll → Reveal → Plan, with Map / Stay / Place / Now branches.
+- A bounded detail-loading pipeline with cancellable HTTP requests and a 28-second overall timeout for unresponsive public services.
+- Minimal screens: Home → Random Destination → Approve → Reveal Details → Plan, with Map / Stay / Place / Now branches.
 - Before accepting a trip, Reveal shows day-by-day real mapped stops, expected visit times, suggested campsites/hostels, and Google Maps exact-pin links. A train connection shows actual scheduled outbound time where available, or an error rather than an invented duration.
 - Animated journey header changes between car, train, bike and walking.
 - No API keys required.
@@ -47,7 +47,7 @@ Installed beta builds can then discover later prereleases from Settings.
 
 ## Accuracy rules
 
-A rolled trip is now checked for valid map coordinates, distinct real OSM activities on each day, and at least one mapped accommodation for overnight trips. If no candidate passes, Roloam reports the verification failure rather than inventing a stop or stay. Route-table metrics are sanity-checked; estimates are labeled. OSM listings do not confirm businesses are open or accommodation is bookable. Train durations use scheduled outbound connections from Transitous; return connections must be checked separately.
+A random destination is picked without checking routes, attractions, stays or train availability. On approval, Roloam fetches mapped places, accommodation, weather and routes for **that exact destination**. Some sections may be empty when public APIs are unavailable; the app does not substitute another city or invent stops and stays. Route-table metrics are sanity-checked and estimates labeled. OSM listings do not confirm businesses are open or accommodation is bookable. Train durations are displayed only for verified outbound connections from Transitous; return connections must be checked separately.
 
 Roloam does **not** invent campsite prices, availability or opening hours. If live data is unavailable, it says so and falls back only for destination discovery rather than fabricating booking information.
 
