@@ -1,5 +1,15 @@
 # Roloam changelog
 
+## 0.12.0-beta — Fast destination discovery
+
+- Show a possible destination immediately from a small offline city index while verifying the real itinerary in the background. The initial name is a preview, not a confirmed trip.
+- Cover major German destinations and nearby border cities without waiting for an initial Overpass place search; use live city discovery when local choices are sparse.
+- Run routing-table batches and bounded destination checks concurrently, with up to four candidates instead of six serial full searches.
+- Cancel underlying HTTP requests promptly when an API times out, and stop an entire roll after 35 seconds instead of allowing it to hang for minutes.
+- Continue requiring genuine mapped attractions, overnight stays when relevant, and a scheduled train connection before a trip can be accepted. Never show guessed train times as confirmed journeys.
+- Log discovery elapsed time for troubleshooting provider slowdowns.
+
+
 ## 0.11.1-beta — Restore train trips
 
 - Switch train journey verification from the unavailable DB REST proxy to Transitous MOTIS 2 scheduled routing.

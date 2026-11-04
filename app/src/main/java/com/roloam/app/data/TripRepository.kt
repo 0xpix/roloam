@@ -3,6 +3,7 @@ package com.roloam.app.data
 import android.content.Context
 import com.roloam.app.model.*
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
@@ -32,7 +33,11 @@ class TripRepository(context: Context) {
     )
     private var cityCache: CachedCities? = null
 
-    suspend fun roll(origin: Origin, prefs: TripPreferences): TripPlan = coroutineScope {
+    suspend fun roll(
+        origin: Origin,
+        prefs: TripPreferences,
+        onPreview: (Destination) -> Unit = {}
+    ): TripPlan = coroutineScope {
         val lastLat = discoveryPrefs.getString("origin_lat", null)?.toDoubleOrNull()
         val lastLon = discoveryPrefs.getString("origin_lon", null)?.toDoubleOrNull()
         if (lastLat == null || lastLon == null ||
@@ -51,20 +56,28 @@ class TripRepository(context: Context) {
             DurationChoice.AUTO -> 2
         }
         val radius = radiusKm(days, prefs.transport)
+        // Always start with the tiny offline city index. Overpass is only needed
+        // where that index lacks nearby choices (e.g. a walk from a rural town).
+        val seeded = DestinationSeeds.nearby(origin.point, radius)
+        val firstSeed = seeded
+            .filter { haversine(origin.point, it.point) > minimumDistance(prefs.transport) }
+            .filterNot { recentDestinations.contains(it.name.lowercase()) }
+            .sortedBy { abs(haversine(origin.point, it.point) - targetDistance(days, prefs.transport)) }
+            .take(8).randomOrNull(random)
+        firstSeed?.let { onPreview(Destination(it.name, it.country, it.point, it.population, routeEstimated = true)) }
+
         val cached = cityCache?.takeIf { it.radiusKm == radius && haversine(it.origin, origin.point) < 5.0 }?.cities
-        val liveCities = cached ?: runCatching { source.cities(origin.point, radius) }.getOrDefault(emptyList()).also {
-            if (it.isNotEmpty()) cityCache = CachedCities(origin.point, radius, it)
+        val liveCities = cached ?: if (seeded.size >= 4) emptyList() else {
+            bestEffort(emptyList()) {
+                withTimeout(6_000L) { source.cities(origin.point, radius) }
+            }.also { if (it.isNotEmpty()) cityCache = CachedCities(origin.point, radius, it) }
         }
-        val localFallback = if (haversine(origin.point, GeoPoint(49.3988, 8.6724)) <= 130.0) {
-            fallbackCities().filter { haversine(origin.point, it.point) <= radius.toDouble() }
-        } else emptyList()
-        val rawCities = if (liveCities.size >= 4) liveCities else
-            (liveCities + localFallback).distinctBy { it.name.lowercase() }
+        val rawCities = (seeded + liveCities).distinctBy { it.name.lowercase() }
 
         val prelim = rawCities
             .filter { haversine(origin.point, it.point) > minimumDistance(prefs.transport) }
             .sortedBy { abs(haversine(origin.point, it.point) - targetDistance(days, prefs.transport)) }
-            .take(50)
+            .take(20)
 
         if (prelim.isEmpty()) error("No nearby destinations found. Check your connection or increase trip duration.")
 
@@ -79,11 +92,15 @@ class TripRepository(context: Context) {
                 TransportMode.WALK -> "walk"
                 else -> "car"
             }
-            // Public routing endpoints can reject huge tables. Isolate failures by batch.
-            prelim.chunked(12).flatMap { batch ->
-                runCatching { source.routeTable(origin.point, batch.map { it.point }, mode) }
-                    .getOrDefault(List(batch.size) { null })
-            }
+            // Two independent requests at most, with a hard deadline. A failed
+            // router yields *labeled estimates*, never a stalled discovery UI.
+            prelim.chunked(10).map { batch ->
+                async {
+                    bestEffort(List<RouteMetric?>(batch.size) { null }) {
+                        withTimeout(6_000L) { source.routeTable(origin.point, batch.map { it.point }, mode) }
+                    }
+                }
+            }.awaitAll().flatten()
         }
 
         val candidates = prelim.mapIndexed { i, city ->
@@ -121,96 +138,94 @@ class TripRepository(context: Context) {
         }
         val remaining = allowed.toMutableList()
         val trials = buildList {
-            repeat(minOf(6, remaining.size)) {
+            // Try the destination already displayed first, if it passed the travel filter.
+            remaining.firstOrNull { it.name == firstSeed?.name }?.let {
+                add(it)
+                remaining.remove(it)
+            }
+            repeat(minOf(4 - size, remaining.size)) {
                 val chosen = weightedPick(remaining)
                 add(chosen)
                 remaining.remove(chosen)
             }
         }
+        trials.firstOrNull()?.let(onPreview)
         val startDate = nextSaturday(LocalDate.now())
-        var timetableErrors = 0
-        var feasibleTrainConnections = 0
-
-        for (candidate in trials) {
-            // A provider outage should not hold the home screen for six timeouts.
-            if (prefs.transport == TransportMode.TRAIN && timetableErrors >= 3) break
+        suspend fun evaluate(candidate: Destination): TrialResult = coroutineScope {
+            // Never show an estimated train duration as a real connection.
             val chosen = if (prefs.transport == TransportMode.TRAIN) {
-                // Validate the departure on the actual trip date. The initial
-                // speed estimate is only for candidate search, never presented.
                 val scheduled = try {
-                    withTimeout(12_000L) {
-                        trainSource.connection(origin.point, candidate, startDate)
-                    }
+                    withTimeout(10_000L) { trainSource.connection(origin.point, candidate, startDate) }
                 } catch (error: TimeoutCancellationException) {
-                    timetableErrors++
-                    null
+                    return@coroutineScope TrialResult(timetableError = true)
                 } catch (error: Exception) {
                     if (error is CancellationException) throw error
-                    timetableErrors++
-                    null
-                } ?: continue
-                if (!validTravel(scheduled.durationMinutes, days, prefs.transport)) continue
-                feasibleTrainConnections++
+                    return@coroutineScope TrialResult(timetableError = true)
+                } ?: return@coroutineScope TrialResult()
+                if (!validTravel(scheduled.durationMinutes, days, prefs.transport)) return@coroutineScope TrialResult()
                 candidate.copy(
-                    travelMinutes = scheduled.durationMinutes,
-                    routeEstimated = false,
-                    trainConnection = scheduled,
-                    distanceKm = haversine(origin.point, candidate.point)
+                    travelMinutes = scheduled.durationMinutes, routeEstimated = false,
+                    trainConnection = scheduled, distanceKm = haversine(origin.point, candidate.point)
                 )
             } else candidate
+
             val placesDeferred = async {
-                val nearby = runCatching { source.attractions(chosen.point, prefs.style.name) }
-                    .getOrDefault(emptyList())
-                val expanded = if (nearby.size >= days * 2) nearby else {
-                    nearby + runCatching { source.attractions(chosen.point, prefs.style.name, 40) }
-                        .getOrDefault(emptyList())
+                bestEffort(emptyList()) {
+                    withTimeout(12_000L) {
+                        val nearby = source.attractions(chosen.point, prefs.style.name)
+                        val expanded = if (nearby.size >= days * 2) nearby else
+                            nearby + bestEffort(emptyList()) { source.attractions(chosen.point, prefs.style.name, 40) }
+                        TripDataQuality.distinctPlaces(expanded)
+                    }
                 }
-                TripDataQuality.distinctPlaces(expanded)
             }
             val staysDeferred = async {
-                if (days == 1) emptyList()
-                else {
-                    val nearby = runCatching { source.stays(chosen.point) }.getOrDefault(emptyList())
-                    val expanded = if (nearby.isNotEmpty()) nearby else {
-                        nearby + runCatching { source.stays(chosen.point, 70) }.getOrDefault(emptyList())
+                if (days == 1) emptyList() else bestEffort(emptyList()) {
+                    withTimeout(12_000L) {
+                        val nearby = source.stays(chosen.point)
+                        TripDataQuality.distinctStays(if (nearby.isNotEmpty()) nearby else
+                            nearby + bestEffort(emptyList()) { source.stays(chosen.point, 70) })
                     }
-                    TripDataQuality.distinctStays(expanded)
                 }
             }
-
+            val weatherDeferred = async {
+                bestEffort(emptyList()) { withTimeout(4_000L) { source.weather(chosen.point) } }
+            }
             val places = placesDeferred.await()
             val rawStays = staysDeferred.await()
-            val rankedPlaces = rankPlaces(
-                places.filterNot { history.contains(it) }, chosen.point, prefs
-            )
-            // Require enough distinct real stops to cover every day. No fictional fallback POI.
-            if (rankedPlaces.size < days * 2 || (days > 1 && rawStays.isEmpty())) continue
-
-            // Weather can fail independently: its absence must not invent weather conditions.
-            val weather = runCatching { source.weather(chosen.point) }.getOrDefault(emptyList())
-            val itinerary = buildItinerary(rankedPlaces, chosen, days, startDate, weather)
+            val ranked = rankPlaces(places.filterNot { history.contains(it) }, chosen.point, prefs)
+            if (ranked.size < days * 2 || (days > 1 && rawStays.isEmpty())) {
+                weatherDeferred.cancel()
+                return@coroutineScope TrialResult(trainFound = chosen.trainConnection != null)
+            }
+            val itinerary = buildItinerary(ranked, chosen, days, startDate, weatherDeferred.await())
             val stays = rankStays(rawStays, prefs, itinerary, chosen.point)
-            val plan = TripPlan(
-                originLabel = origin.label,
-                origin = origin.point,
-                destination = chosen,
-                days = days,
-                startDate = startDate,
-                stay = stays.firstOrNull(),
-                alternativeStays = stays.drop(1).take(4),
-                itinerary = itinerary,
-                usedLiveData = true
-            )
+            val plan = TripPlan(origin.label, origin.point, chosen, days, startDate,
+                stays.firstOrNull(), stays.drop(1).take(4), itinerary)
+            TrialResult(plan.takeIf { TripDataQuality.problems(it).isEmpty() },
+                trainFound = chosen.trainConnection != null)
+        }
 
-            if (TripDataQuality.problems(plan).isNotEmpty()) continue
-            // A failed candidate is never recorded as a successfully suggested trip.
-            recentDestinations.remove(chosen.name.lowercase())
-            recentDestinations.addFirst(chosen.name.lowercase())
-            while (recentDestinations.size > 10) recentDestinations.removeLast()
-            discoveryPrefs.edit()
-                .putString("recent_destinations", recentDestinations.joinToString("|"))
-                .apply()
-            return@coroutineScope plan
+        var timetableErrors = 0
+        var feasibleTrainConnections = 0
+        // Two trials at a time so an unresponsive provider cannot hold every
+        // other destination hostage. A single roll is limited by the ViewModel.
+        for (batch in trials.chunked(2)) {
+            val results = batch.map { candidate ->
+                async { evaluate(candidate) }
+            }.awaitAll()
+            timetableErrors += results.count { it.timetableError }
+            feasibleTrainConnections += results.count { it.trainFound }
+            val plan = results.firstNotNullOfOrNull { it.plan }
+            if (plan != null) {
+                recentDestinations.remove(plan.destination.name.lowercase())
+                recentDestinations.addFirst(plan.destination.name.lowercase())
+                while (recentDestinations.size > 10) recentDestinations.removeLast()
+                discoveryPrefs.edit().putString("recent_destinations", recentDestinations.joinToString("|")).apply()
+                return@coroutineScope plan
+            }
+            // Indicate that the first preview did not pass verification.
+            trials.getOrNull(trials.indexOf(batch.last()) + 1)?.let(onPreview)
         }
 
         if (prefs.transport == TransportMode.TRAIN) {
@@ -231,6 +246,22 @@ class TripRepository(context: Context) {
         }
         error("Could not verify enough real places and accommodation for this trip. " +
             "Try again, change transport, or check your connection.")
+    }
+
+    private data class TrialResult(
+        val plan: TripPlan? = null,
+        val timetableError: Boolean = false,
+        val trainFound: Boolean = false
+    )
+
+    private suspend fun <T> bestEffort(default: T, action: suspend () -> T): T = try {
+        action()
+    } catch (error: CancellationException) {
+        // A local timeout is an expected provider failure; a cancelled roll
+        // must still stop all of its in-flight requests immediately.
+        if (error is TimeoutCancellationException) default else throw error
+    } catch (_: Exception) {
+        default
     }
 
     /**
@@ -530,21 +561,4 @@ class TripRepository(context: Context) {
 
     private data class CachedCities(val origin: GeoPoint, val radiusKm: Int, val cities: List<CityRaw>)
 
-    private fun fallbackCities() = listOf(
-        CityRaw("Cologne", "Germany", GeoPoint(50.9375, 6.9603), 1_087_000),
-        CityRaw("Strasbourg", "France", GeoPoint(48.5734, 7.7521), 291_000),
-        CityRaw("Freiburg", "Germany", GeoPoint(47.9990, 7.8421), 236_000),
-        CityRaw("Stuttgart", "Germany", GeoPoint(48.7758, 9.1829), 635_000),
-        CityRaw("Nuremberg", "Germany", GeoPoint(49.4521, 11.0767), 526_000),
-        CityRaw("Würzburg", "Germany", GeoPoint(49.7913, 9.9534), 130_000),
-        CityRaw("Trier", "Germany", GeoPoint(49.7499, 6.6371), 112_000),
-        CityRaw("Koblenz", "Germany", GeoPoint(50.3569, 7.5889), 115_000),
-        CityRaw("Frankfurt", "Germany", GeoPoint(50.1109, 8.6821), 775_000),
-        CityRaw("Luxembourg", "Luxembourg", GeoPoint(49.6116, 6.1319), 136_000),
-        CityRaw("Basel", "Switzerland", GeoPoint(47.5596, 7.5886), 177_000),
-        CityRaw("Baden-Baden", "Germany", GeoPoint(48.7606, 8.2398), 56_000),
-        CityRaw("Mainz", "Germany", GeoPoint(49.9929, 8.2473), 220_000),
-        CityRaw("Rothenburg ob der Tauber", "Germany", GeoPoint(49.3789, 10.1870), 11_000),
-        CityRaw("Speyer", "Germany", GeoPoint(49.3173, 8.4412), 51_000)
-    )
 }
