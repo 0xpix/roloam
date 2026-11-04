@@ -1,6 +1,7 @@
 package com.roloam.app.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -8,12 +9,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.roloam.app.BuildConfig
 import com.roloam.app.Screen
 import com.roloam.app.UiState
+import com.roloam.app.model.DestinationFont
 
 @Composable
 fun SettingsScreen(
@@ -22,7 +25,8 @@ fun SettingsScreen(
     back: () -> Unit,
     checkUpdate: () -> Unit,
     downloadUpdate: () -> Unit,
-    installUpdate: () -> Unit
+    installUpdate: () -> Unit,
+    changeDestinationFont: (DestinationFont) -> Unit
 ) = Page {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         RoloamSectionBar("SETTINGS")
@@ -51,6 +55,45 @@ fun SettingsScreen(
                 Text("→", color=RoloamMuted)
             }
         }
+
+        Spacer(Modifier.height(25.dp))
+        Text("TYPOGRAPHY", fontSize=11.sp, fontWeight=FontWeight.Bold, color=RoloamMuted)
+        Spacer(Modifier.height(5.dp))
+        Text("Choose how destination names appear while rolling.", fontSize=12.sp, color=RoloamMuted)
+        Spacer(Modifier.height(11.dp))
+        DestinationFont.entries.forEach { choice ->
+            val selected = state.destinationFont == choice
+            Surface(
+                modifier = Modifier.fillMaxWidth().clickable { changeDestinationFont(choice) },
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, if (selected) RoloamAccent else RoloamMuted.copy(alpha = .25f)),
+                tonalElevation = if (selected) 2.dp else 0.dp
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal=15.dp, vertical=13.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            if (choice == DestinationFont.DOTO) "Doto · dot matrix" else "Geist Mono · clean",
+                            fontSize=12.sp, color=RoloamMuted
+                        )
+                        Spacer(Modifier.height(7.dp))
+                        Text(
+                            "Freiburg", fontSize=25.sp,
+                            fontFamily=RoloamFonts.forDestination(choice),
+                            fontWeight=RoloamFonts.destinationWeight(choice),
+                            maxLines=1
+                        )
+                    }
+                    RadioButton(selected = selected, onClick = { changeDestinationFont(choice) })
+                }
+            }
+            Spacer(Modifier.height(9.dp))
+        }
+        Text("Other interface text stays in Geist Mono for readability.",
+            fontSize=11.sp, color=RoloamMuted)
 
         Spacer(Modifier.height(25.dp))
         Text("APP", fontSize=11.sp, fontWeight=FontWeight.Bold, color=RoloamMuted)

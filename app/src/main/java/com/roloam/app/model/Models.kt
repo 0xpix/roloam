@@ -10,6 +10,16 @@ enum class Budget { CHEAP, NORMAL }
 enum class StayPreference { CAMPING, ANY }
 enum class TripStyle { NATURE, CITY, BOTH }
 
+/** The two user-selectable display fonts for the rolling destination name. */
+enum class DestinationFont {
+    DOTO, GEIST_MONO;
+
+    companion object {
+        fun fromStorage(value: String?): DestinationFont =
+            entries.firstOrNull { it.name == value } ?: GEIST_MONO
+    }
+}
+
 data class TripPreferences(
     val duration: DurationChoice = DurationChoice.TWO,
     val transport: TransportMode = TransportMode.CAR,

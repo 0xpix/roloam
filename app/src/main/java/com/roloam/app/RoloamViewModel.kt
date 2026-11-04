@@ -32,6 +32,7 @@ data class UiState(
     val rolling: Boolean = false,
     val previewDestination: Destination? = null,
     val rollSequence: Long = 0,
+    val destinationFont: DestinationFont = DestinationFont.GEIST_MONO,
     val replacingPlace: Boolean = false,
     val trip: TripPlan? = null,
     val destinationOverview: DestinationOverview? = null,
@@ -59,6 +60,7 @@ class RoloamViewModel(app: Application) : AndroidViewModel(app) {
     private var detailsJob: Job? = null
     private val _state = MutableStateFlow(UiState(
         preferences = acceptedPreferences ?: loadPreferences(),
+        destinationFont = DestinationFont.fromStorage(prefsStore.getString("destination_font", null)),
         trip = acceptedTrip,
         savedTrip = acceptedTrip,
         savedTripPreferences = acceptedPreferences
@@ -93,6 +95,11 @@ class RoloamViewModel(app: Application) : AndroidViewModel(app) {
     fun updatePreferences(value: TripPreferences) {
         _state.value = _state.value.copy(preferences = value)
         savePreferences(value)
+    }
+
+    fun updateDestinationFont(value: DestinationFont) {
+        _state.value = _state.value.copy(destinationFont = value)
+        prefsStore.edit().putString("destination_font", value.name).apply()
     }
 
     fun selectStop(stop: TripStop) {

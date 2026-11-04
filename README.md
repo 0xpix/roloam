@@ -9,6 +9,7 @@ Roloam is a deliberately small Android app for spontaneous 1–3 day escapes. Th
 - Phone location when permission is granted; Heidelberg is the safe demo fallback.
 - Instant random destinations from a bundled offline index near supported German and border cities, without network requests on roll.
 - Slot-machine-like character scramble when rolling: symbols change in place and each destination letter locks in sequence, including on rerolls.
+- Settings → Typography lets the user choose Doto or Geist Mono for the destination reveal. Both font files are bundled with the APK under their open font licenses; see `THIRD_PARTY_FONTS.md`.
 - Live routes, train timetables, mapped attractions, stays and forecast are fetched **only after the user approves the destination**.
 - Real road-time scoring for car trips with OSRM.
 - Bike and walking route-time support through OpenStreetMap routing endpoints.
