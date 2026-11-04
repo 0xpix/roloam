@@ -16,13 +16,14 @@ import android.util.Log
 import java.io.File
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 
-enum class Screen { HOME, PREFERENCES, SETTINGS, REVEAL, PLAN, MAP, STAY, PLACE, NOW, WEATHER, PACKING }
+enum class Screen { HOME, PREFERENCES, SETTINGS, DESTINATION, REVEAL, PLAN, MAP, STAY, PLACE, NOW, WEATHER, PACKING }
 
 data class UiState(
     val screen: Screen = Screen.HOME,
@@ -54,6 +55,7 @@ class RoloamViewModel(app: Application) : AndroidViewModel(app) {
     private val prefsStore = app.getSharedPreferences("roloam", 0)
     private val acceptedTrip = tripStore.load()
     private val acceptedPreferences = tripStore.loadPreferences()
+    private var detailsJob: Job? = null
     private val _state = MutableStateFlow(UiState(
         preferences = acceptedPreferences ?: loadPreferences(),
         trip = acceptedTrip,
@@ -78,11 +80,13 @@ class RoloamViewModel(app: Application) : AndroidViewModel(app) {
             Screen.HOME -> Screen.HOME
             Screen.PREFERENCES -> Screen.SETTINGS
             Screen.SETTINGS -> Screen.HOME
-            Screen.REVEAL -> Screen.HOME
+            Screen.DESTINATION -> Screen.HOME
+            Screen.REVEAL -> Screen.DESTINATION
             Screen.PLAN -> Screen.REVEAL
             Screen.MAP, Screen.STAY, Screen.PLACE, Screen.NOW, Screen.WEATHER, Screen.PACKING -> Screen.PLAN
         }
-        _state.value = _state.value.copy(screen = target, selectedStop = null)
+        if (_state.value.rolling) detailsJob?.cancel()
+        _state.value = _state.value.copy(screen = target, selectedStop = null, rolling = false)
     }
 
     fun updatePreferences(value: TripPreferences) {
@@ -96,35 +100,43 @@ class RoloamViewModel(app: Application) : AndroidViewModel(app) {
 
     fun roll() {
         if (_state.value.rolling) return
-        val origin = _state.value.origin
-        val preferences = _state.value.preferences
-        viewModelScope.launch {
+        try {
+            // Zero network requests: this changes screens on the same UI frame.
+            val pick = trips.pickDestination(_state.value.origin, _state.value.preferences)
             _state.value = _state.value.copy(
-                rolling = true, previewDestination = null,
+                screen = Screen.DESTINATION, previewDestination = pick, trip = null,
                 destinationOverview = null, overviewLoading = false, error = null
             )
+        } catch (error: Exception) {
+            _state.value = _state.value.copy(error = error.message ?: "No destinations available")
+        }
+    }
+
+    /** Live trip data is requested only after the user decides they like the city. */
+    fun approveDestination() {
+        if (_state.value.rolling) return
+        val selected = _state.value.previewDestination ?: return
+        val origin = _state.value.origin
+        val preferences = _state.value.preferences
+        detailsJob = viewModelScope.launch {
+            _state.value = _state.value.copy(rolling = true, error = null)
             val started = android.os.SystemClock.elapsedRealtime()
             try {
-                val plan = withTimeout(35_000L) {
-                    trips.roll(origin, preferences) { candidate ->
-                        _state.value = _state.value.copy(previewDestination = candidate)
-                    }
-                }
-                Log.d("RoloamDiscovery", "Verified trip in ${android.os.SystemClock.elapsedRealtime() - started}ms")
+                val plan = withTimeout(28_000L) { trips.loadDetails(origin, preferences, selected) }
+                Log.d("RoloamDiscovery", "Loaded ${selected.name} details in ${android.os.SystemClock.elapsedRealtime() - started}ms")
                 _state.value = _state.value.copy(
-                    rolling = false, previewDestination = null, trip = plan, screen = Screen.REVEAL,
+                    rolling = false, trip = plan, screen = Screen.REVEAL,
                     destinationOverview = null, overviewLoading = false
                 )
             } catch (error: TimeoutCancellationException) {
-                Log.w("RoloamDiscovery", "Discovery timed out after ${android.os.SystemClock.elapsedRealtime() - started}ms")
-                _state.value = _state.value.copy(rolling = false, previewDestination = null,
-                    error = "Live trip checks took too long. Please try again or change transport.")
+                _state.value = _state.value.copy(rolling = false,
+                    error = "Details took too long to load. You can retry or roll another destination.")
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
-                Log.w("RoloamDiscovery", "Discovery failed after ${android.os.SystemClock.elapsedRealtime() - started}ms", error)
-                _state.value = _state.value.copy(rolling = false, previewDestination = null,
-                    error = error.message ?: "Could not build a trip")
+                Log.w("RoloamDiscovery", "Details failed for ${selected.name}", error)
+                _state.value = _state.value.copy(rolling = false,
+                    error = error.message ?: "Could not load details. Your destination is still selected.")
             }
         }
     }
@@ -205,14 +217,15 @@ class RoloamViewModel(app: Application) : AndroidViewModel(app) {
         }
         _state.value = _state.value.copy(
             savedTrip = null, savedTripPreferences = null, trip = null,
-            selectedStop = null, screen = Screen.HOME, error = null
+            previewDestination = null, selectedStop = null, screen = Screen.HOME, error = null
         )
     }
 
     /** Android Back is triggered by the system's edge swipe from either side. */
     fun goHome() {
+        if (_state.value.rolling) detailsJob?.cancel()
         if (_state.value.screen != Screen.HOME) {
-            _state.value = _state.value.copy(screen = Screen.HOME, selectedStop = null, error = null)
+            _state.value = _state.value.copy(screen = Screen.HOME, selectedStop = null, error = null, rolling = false)
         }
     }
 

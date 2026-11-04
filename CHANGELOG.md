@@ -1,5 +1,14 @@
 # Roloam changelog
 
+## 0.13.0-beta — Destination first
+
+- Roll instantly picks a random nearby city using only the offline destination index. No route, train, weather, campsite or attraction requests occur when rolling.
+- A dedicated destination screen has two choices: roll another place immediately or approve this one and request its trip details.
+- The approved destination stays selected even if a third-party timetable or mapping service cannot provide all its details. Only the approved destination is queried; no hidden retries with other cities.
+- After approval, show the real attractions, accommodation and routes that were found, explicitly mark missing listings, and never invent a verified rail journey or arrival time.
+- Cancel in-progress detail requests when navigating home. Keep the previous accepted trip until the user accepts a new one.
+
+
 ## 0.12.0-beta — Fast destination discovery
 
 - Show a possible destination immediately from a small offline city index while verifying the real itinerary in the background. The initial name is a preview, not a confirmed trip.

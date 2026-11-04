@@ -33,6 +33,123 @@ class TripRepository(context: Context) {
     )
     private var cityCache: CachedCities? = null
 
+    /**
+     * The roll button does no networking, routing, POI lookup or verification.
+     * It only chooses a real, geolocated name from the offline index.
+     */
+    fun pickDestination(origin: Origin, prefs: TripPreferences): Destination {
+        val previousLat = discoveryPrefs.getString("origin_lat", null)?.toDoubleOrNull()
+        val previousLon = discoveryPrefs.getString("origin_lon", null)?.toDoubleOrNull()
+        if (previousLat == null || previousLon == null ||
+            haversine(GeoPoint(previousLat, previousLon), origin.point) > 50.0) {
+            recentDestinations.clear()
+            discoveryPrefs.edit()
+                .putString("origin_lat", origin.point.lat.toString())
+                .putString("origin_lon", origin.point.lon.toString())
+                .remove("recent_destinations").apply()
+        }
+        val days = when (prefs.duration) {
+            DurationChoice.ONE -> 1
+            DurationChoice.TWO, DurationChoice.AUTO -> 2
+            DurationChoice.THREE -> 3
+        }
+        val options = DestinationSeeds.nearby(origin.point, radiusKm(days, prefs.transport))
+            .filter { haversine(origin.point, it.point) > minimumDistance(prefs.transport) }
+        if (options.isEmpty()) {
+            error("No offline destinations in this range yet. Try a longer trip or another transport mode.")
+        }
+        val pick = DestinationSeeds.pick(options, recentDestinations, random)
+            ?: error("No destinations available in the selected range")
+        recentDestinations.remove(pick.name.lowercase())
+        recentDestinations.addFirst(pick.name.lowercase())
+        while (recentDestinations.size > 10) recentDestinations.removeLast()
+        discoveryPrefs.edit().putString("recent_destinations", recentDestinations.joinToString("|")).apply()
+        return Destination(
+            name = pick.name, country = pick.country, point = pick.point,
+            population = pick.population, distanceKm = haversine(origin.point, pick.point),
+            routeEstimated = true, wikipediaTitle = pick.wikipediaTitle
+        )
+    }
+
+    /**
+     * Called ONLY when the user approves the already selected destination.
+     * Missing data results in incomplete, clearly labeled details; it never
+     * silently selects a different city or erases their choice.
+     */
+    suspend fun loadDetails(origin: Origin, prefs: TripPreferences, picked: Destination): TripPlan = coroutineScope {
+        val days = when (prefs.duration) {
+            DurationChoice.ONE -> 1
+            DurationChoice.TWO, DurationChoice.AUTO -> 2
+            DurationChoice.THREE -> 3
+        }
+        val startDate = nextSaturday(LocalDate.now())
+        val distanceKm = haversine(origin.point, picked.point)
+        val destination = if (prefs.transport == TransportMode.TRAIN) {
+            val verified = bestEffort<com.roloam.app.model.TrainConnection?>(null) {
+                withTimeout(10_000L) { trainSource.connection(origin.point, picked, startDate) }
+            }
+            picked.copy(
+                travelMinutes = verified?.durationMinutes ?: 0,
+                distanceKm = distanceKm, routeEstimated = verified == null,
+                trainConnection = verified
+            )
+        } else {
+            val mode = when (prefs.transport) {
+                TransportMode.BIKE -> "bike"
+                TransportMode.WALK -> "walk"
+                else -> "car"
+            }
+            val route = bestEffort<List<RouteMetric?>>(emptyList()) {
+                withTimeout(6_000L) { source.routeTable(origin.point, listOf(picked.point), mode) }
+            }.firstOrNull()
+            val speed = when (prefs.transport) {
+                TransportMode.BIKE -> 18.0
+                TransportMode.WALK -> 4.7
+                else -> 78.0
+            }
+            picked.copy(
+                travelMinutes = route?.minutes ?: ((distanceKm * 1.25 / speed) * 60).roundToInt(),
+                distanceKm = route?.distanceKm ?: distanceKm * 1.25,
+                routeEstimated = route == null
+            )
+        }
+
+        val places = async {
+            bestEffort(emptyList<Place>()) {
+                withTimeout(12_000L) {
+                    val nearby = source.attractions(picked.point, prefs.style.name)
+                    TripDataQuality.distinctPlaces(if (nearby.size >= days * 2) nearby else
+                        nearby + bestEffort(emptyList()) { source.attractions(picked.point, prefs.style.name, 40) })
+                }
+            }
+        }
+        val stays = async {
+            if (days == 1) emptyList() else bestEffort(emptyList<Stay>()) {
+                withTimeout(12_000L) {
+                    val nearby = source.stays(picked.point)
+                    TripDataQuality.distinctStays(if (nearby.isNotEmpty()) nearby else
+                        nearby + bestEffort(emptyList()) { source.stays(picked.point, 70) })
+                }
+            }
+        }
+        val weather = async {
+            bestEffort(emptyList<WeatherDay>()) { withTimeout(4_000L) { source.weather(picked.point) } }
+        }
+        val rankedPlaces = rankPlaces(places.await().filterNot { history.contains(it) }, picked.point, prefs)
+        val rankedStays = stays.await()
+        val provisionalItinerary = buildItinerary(rankedPlaces, destination, days, startDate, weather.await())
+        // We cannot put clock times on a train day with no verified arrival.
+        val itinerary = if (prefs.transport == TransportMode.TRAIN && destination.trainConnection == null) {
+            provisionalItinerary.map { day -> day.copy(stops = day.stops.map { stop ->
+                stop.copy(time = "—", whyNow = "Suggested stop; verify the train journey before deciding when to visit.")
+            }) }
+        } else provisionalItinerary
+        val stayOptions = rankStays(rankedStays, prefs, itinerary, picked.point)
+        TripPlan(origin.label, origin.point, destination, days, startDate,
+            stayOptions.firstOrNull(), stayOptions.drop(1).take(4), itinerary,
+            usedLiveData = rankedPlaces.isNotEmpty() || rankedStays.isNotEmpty())
+    }
+
     suspend fun roll(
         origin: Origin,
         prefs: TripPreferences,
